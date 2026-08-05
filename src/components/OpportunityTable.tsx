@@ -120,6 +120,7 @@ function OpportunityTableForLeague({
     loadThreshold(league, technique.slug, technique.defaultThresholdPercent),
   );
   const [search, setSearch] = useState("");
+  const [minValue, setMinValue] = useState(0);
   const [sortMode, setSortMode] = useState<"value" | "marginTotal" | "marginPercent">(
     "marginPercent",
   );
@@ -198,13 +199,14 @@ function OpportunityTableForLeague({
   const filteredItems = useMemo(() => {
     if (!items) return [];
     const term = search.trim().toLowerCase();
-    if (!term) return items;
     return items.filter((item) => {
+      if (item.chaosValue < minValue) return false;
+      if (!term) return true;
       if (item.name.toLowerCase().includes(term)) return true;
       const reward = technique.rewardConfig?.rewards[item.name];
       return reward ? reward.rewardName.toLowerCase().includes(term) : false;
     });
-  }, [items, search, technique]);
+  }, [items, search, minValue, technique]);
 
   // Row order is intentionally NOT recomputed when `overrides` changes: if it
   // were, dragging a slider on a margin-sorted table would move that row out
@@ -262,6 +264,19 @@ function OpportunityTableForLeague({
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Filter by item or reward name..."
             className="rounded-md border border-[var(--border)] bg-[var(--surface-alt)] px-2 py-1 text-sm outline-none focus:border-[var(--accent)]"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-[var(--muted)]">Min market value (chaos)</label>
+          <input
+            type="number"
+            min={0}
+            step={0.01}
+            value={minValue}
+            onChange={(e) => setMinValue(Math.max(0, Number(e.target.value) || 0))}
+            placeholder="0.00"
+            className="w-28 rounded-md border border-[var(--border)] bg-[var(--surface-alt)] px-2 py-1 text-sm outline-none focus:border-[var(--accent)]"
           />
         </div>
 
