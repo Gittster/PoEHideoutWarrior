@@ -7,8 +7,12 @@ export interface PriceOverride {
 
 export type OverrideMap = Record<string, PriceOverride>;
 
+// v2: the divination-card "sell" override changed meaning from full-stack
+// total to per-unit reward price. Bumping the key means old total-based
+// values (which would now get re-multiplied by quantity) are simply never
+// read, instead of silently producing wildly wrong margins.
 function overridesKey(league: string, slug: string) {
-  return `phw:overrides:${league}:${slug}`;
+  return `phw:overrides:v2:${league}:${slug}`;
 }
 
 function thresholdKey(league: string, slug: string) {
