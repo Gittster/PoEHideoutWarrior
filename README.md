@@ -1,5 +1,5 @@
 # PoE Hideout Warrior
-
+ 
 An index of ways to make currency in Path of Exile, organized by technique. The first section,
 **Arbitrage**, tracks currency-market spreads, divination card turn-ins, and bulk-to-retail flips
 against live [poe.ninja](https://poe.ninja) prices, with per-item sliders so you can model your
