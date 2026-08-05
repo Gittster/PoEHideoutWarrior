@@ -1,4 +1,5 @@
 import { DIVINATION_CARD_REWARDS, type DivinationCardReward } from "@/lib/arbitrage/divinationCardRewards";
+import { WEIGHTED_CARD_REWARDS, type WeightedCardEntry } from "@/lib/arbitrage/weightedCardRewards";
 
 export interface ArbitrageTechnique {
   slug: string;
@@ -24,6 +25,16 @@ export interface ArbitrageTechnique {
   rewardConfig?: {
     /** Keyed by the row's item name (e.g. divination card name) */
     rewards: Record<string, DivinationCardReward>;
+  };
+  /**
+   * Optional: for cards whose payout is a random pick from a small pool of
+   * rewards rather than one fixed item (e.g. The Card Sharp). Rendered by a
+   * separate page/component from `rewardConfig` since the math (expected
+   * value across several weighted outcomes) and the extra results-log UI
+   * don't fit the single-reward table.
+   */
+  weightedRewardConfig?: {
+    rewards: Record<string, WeightedCardEntry>;
   };
 }
 
@@ -76,6 +87,33 @@ export const ARBITRAGE_TECHNIQUES: ArbitrageTechnique[] = [
     sellLabel: "Reward price per unit (chaos)",
     rewardConfig: {
       rewards: DIVINATION_CARD_REWARDS,
+    },
+  },
+  {
+    slug: "variable-reward-cards",
+    title: "Variable-Reward Divination Cards",
+    shortDescription:
+      "Cards that pay out a random pick from a small pool of rewards, priced by expected value instead of one fixed payout.",
+    category: "DivinationCard",
+    overview: [
+      "Most divination cards give one fixed reward, but a handful randomize between a small set of possible payouts - The Card Sharp always gives a Divination Scarab, for example, but which type is picked by weight. Those can't be priced with a single reward value, so this page computes an expected value instead: the weighted average of every possible outcome's live price.",
+      "Log what you actually pull from each card here too - it's a good sanity check against the documented weights, since GGG doesn't publish these officially and they occasionally change between leagues.",
+    ],
+    mechanics: [
+      "Expected value = sum over each possible outcome of (its share of total weight) x (its reward quantity) x (its live price).",
+      "Compare the full-stack cost against the expected value, same as the fixed-reward page.",
+      "The single outcome you get on any one stack can be far off the average - this is a long-run edge across many stacks, not a guaranteed profit per stack.",
+    ],
+    risks: [
+      "Outcome weights are hand-entered from community data, not fetched live or independently verified - double check before trusting a big trade, and watch your own logged results against them.",
+      "A missing or wrong outcome in the pool skews the expected value optimistically (it assumes the listed outcomes are the only ones possible).",
+      "Some individual outcomes may have no live price at all, in which case the expected value can't be computed until poe.ninja has data for it.",
+    ],
+    defaultThresholdPercent: 15,
+    buyLabel: "Your cost per card (chaos)",
+    sellLabel: "Expected value per stack (chaos)",
+    weightedRewardConfig: {
+      rewards: WEIGHTED_CARD_REWARDS,
     },
   },
   {
