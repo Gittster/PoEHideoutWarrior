@@ -21,11 +21,7 @@
 // type_filters.filters.category.option, ...), nested the same way as
 // map_filters/type_filters. Confirmed working against a live search.
 //
-// And excludes corrupted items and Foulborn uniques (the Keepers of the
-// Flame variant that swaps in an alternate mod on an existing unique, same
-// display name as the base item) via misc_filters, same "option": "false"
-// shape as corrupted - so a plain name search doesn't mix Foulborn copies in
-// with normal ones.
+// And excludes corrupted items via misc_filters.filters.corrupted.
 export function buildTradeSearchUrl(itemName: string, category: string, league: string): string {
   const isUnique = category.startsWith("Unique");
 
@@ -43,7 +39,6 @@ export function buildTradeSearchUrl(itemName: string, category: string, league: 
         disabled: false,
         filters: {
           corrupted: { option: "false" },
-          foulborn: { option: "false" },
         },
       },
     },
