@@ -11,7 +11,7 @@ import {
   type OverrideMap,
 } from "@/lib/arbitrage/overrides";
 import type { ArbitrageTechnique } from "@/lib/arbitrage/techniques";
-import { fetchPoeNinjaCategory, type PoeNinjaItem } from "@/lib/poeninja";
+import type { PoeNinjaItem } from "@/lib/poeninja";
 
 const PAGE_SIZE = 40;
 
@@ -64,14 +64,11 @@ function OpportunityTableForLeague({
     setLoading(true);
     setError(null);
     /* eslint-enable react-hooks/set-state-in-effect */
-    fetchPoeNinjaCategory(technique.category, league)
-      .then((data) => {
-        if (data.length === 0) {
-          throw new Error(
-            `No data returned for category "${technique.category}" in league "${league}"`,
-          );
-        }
-        return data;
+    fetch(`/api/poeninja?category=${encodeURIComponent(technique.category)}&league=${encodeURIComponent(league)}`)
+      .then(async (res) => {
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || "Failed to load prices");
+        return body.items as PoeNinjaItem[];
       })
       .then((data) => {
         if (cancelled) return;

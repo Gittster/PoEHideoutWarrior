@@ -1,8 +1,8 @@
-// Browser-side poe.ninja client, ported from the working Google Apps Script
+// Server-side poe.ninja client, ported from the working Google Apps Script
 // IMPORTPOENINJA function: try the stash/item/exchange economy overview
-// endpoints in order and return the first one that has data. Called directly
-// from the client - poe.ninja's economy endpoints allow cross-origin requests,
-// so no server-side proxy is needed.
+// endpoints in order and return the first one that has data. Must run
+// server-side (called from the /api/poeninja route) - poe.ninja's economy
+// endpoints don't send CORS headers, so the browser can't call them directly.
 
 export interface PoeNinjaItem {
   id: string;
@@ -102,7 +102,12 @@ export async function fetchPoeNinjaCategory(
 
   for (const url of endpoints) {
     try {
-      const res = await fetch(url, { headers: { accept: "application/json" } });
+      const res = await fetch(url, {
+        headers: { accept: "application/json" },
+        // poe.ninja data updates periodically; avoid hammering it on every
+        // page load while still staying reasonably fresh.
+        next: { revalidate: 600 },
+      });
       if (!res.ok) continue;
 
       const json = (await res.json()) as NinjaResponse;

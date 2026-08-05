@@ -7,11 +7,12 @@ own buy/sell assumptions and flag opportunities against a margin threshold.
 
 ## Stack
 
-- Next.js (App Router) + TypeScript + Tailwind CSS, built as a fully static site (`output: "export"`)
-- No backend, no database - the league setting and your manual price overrides/thresholds live in
+- Next.js (App Router) + TypeScript + Tailwind CSS
+- No database - the league setting and your manual price overrides/thresholds live in
   `localStorage`, per browser
-- The browser calls poe.ninja's economy-overview endpoints directly (no server-side proxy) - see
-  `src/lib/poeninja.ts`
+- A server-side API route (`/api/poeninja`) proxies poe.ninja's economy-overview endpoints -
+  poe.ninja doesn't send CORS headers, so the browser can't call it directly; the route runs
+  server-to-server instead
 
 ## Getting started
 
@@ -22,25 +23,15 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-## Deploying to GitHub Pages
+## Deploying to Vercel
 
-`.github/workflows/deploy-pages.yml` builds the static export and publishes it on every push to
-`main` (or manually via the Actions tab's "Run workflow" button). One-time setup in the repo:
+This needs a host that runs the `/api/poeninja` route as a server function, not a static file
+host (GitHub Pages can't do this). [Vercel](https://vercel.com) is the natural fit for a Next.js
+app and has a free tier:
 
-1. Settings -> Pages -> Source -> **GitHub Actions**.
-2. Push to `main` (or run the workflow manually) - the site deploys to
-   `https://<owner>.github.io/<repo>/`.
-
-`next.config.ts` derives the `/<repo>/` base path automatically from `GITHUB_REPOSITORY` when
-building in Actions, so local `npm run dev`/`npm run build` are unaffected and nothing needs to be
-hardcoded if the repo is ever renamed.
-
-To build the static export locally (e.g. to check the `out/` folder before pushing):
-
-```bash
-npm run build   # outputs to ./out
-npx serve out   # preview it as plain static files
-```
+1. Sign up at vercel.com with your GitHub account.
+2. "Add New Project" -> import this repo. Vercel auto-detects Next.js, no config needed.
+3. Every push to `main` auto-deploys.
 
 ## Project structure
 
@@ -48,9 +39,9 @@ npx serve out   # preview it as plain static files
   are placeholders for future sections)
 - `src/app/config` - set the active league (persisted to `localStorage`)
 - `src/app/arbitrage` - arbitrage technique index and `[slug]` detail pages
+- `src/app/api/poeninja/route.ts` - server-side poe.ninja proxy with a short in-memory cache
 - `src/lib/poeninja.ts` - poe.ninja fetch/parse logic (ported from a working Google Apps Script
-  that hits the stash/item/exchange economy-overview endpoints in order), called directly from
-  the browser
+  that hits the stash/item/exchange economy-overview endpoints in order)
 - `src/lib/arbitrage/techniques.ts` - the static list of arbitrage techniques (overview, how it
   works, risks, poe.ninja category, default threshold)
 - `src/components/OpportunityTable.tsx` - live price table with per-item buy/sell sliders,
