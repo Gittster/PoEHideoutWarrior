@@ -14,12 +14,29 @@
 //  - Everything else (divination cards, currency, fragments, gems, ...) uses
 //    its display name as the `type` field instead, since that's the same
 //    string the trade site's own "item" search box expects there.
+//
+// Also restricts results to listings priced in Chaos Orbs, via
+// filters.trade_filters.filters.price.option - same "option" shape as every
+// other dropdown filter in the site's own query format (status.option,
+// type_filters.filters.category.option, ...), nested the same way as
+// map_filters/type_filters. Unverified against a live query (no example with
+// a currency-restricted price filter to check against), but low risk either
+// way since this only builds a link opened in the user's own browser - a
+// wrong option here just gets ignored by the site, not a bad price shown.
 export function buildTradeSearchUrl(itemName: string, category: string, league: string): string {
   const isUnique = category.startsWith("Unique");
 
   const query: Record<string, unknown> = {
     status: { option: "securable" },
     stats: [{ type: "and", filters: [] }],
+    filters: {
+      trade_filters: {
+        disabled: false,
+        filters: {
+          price: { option: "chaos" },
+        },
+      },
+    },
   };
   if (isUnique) {
     query.name = itemName;
