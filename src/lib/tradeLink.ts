@@ -19,10 +19,13 @@
 // filters.trade_filters.filters.price.option - same "option" shape as every
 // other dropdown filter in the site's own query format (status.option,
 // type_filters.filters.category.option, ...), nested the same way as
-// map_filters/type_filters. Unverified against a live query (no example with
-// a currency-restricted price filter to check against), but low risk either
-// way since this only builds a link opened in the user's own browser - a
-// wrong option here just gets ignored by the site, not a bad price shown.
+// map_filters/type_filters. Confirmed working against a live search.
+//
+// And excludes corrupted items and Foulborn uniques (the Keepers of the
+// Flame variant that swaps in an alternate mod on an existing unique, same
+// display name as the base item) via misc_filters, same "option": "false"
+// shape as corrupted - so a plain name search doesn't mix Foulborn copies in
+// with normal ones.
 export function buildTradeSearchUrl(itemName: string, category: string, league: string): string {
   const isUnique = category.startsWith("Unique");
 
@@ -34,6 +37,13 @@ export function buildTradeSearchUrl(itemName: string, category: string, league: 
         disabled: false,
         filters: {
           price: { option: "chaos" },
+        },
+      },
+      misc_filters: {
+        disabled: false,
+        filters: {
+          corrupted: { option: "false" },
+          foulborn: { option: "false" },
         },
       },
     },
