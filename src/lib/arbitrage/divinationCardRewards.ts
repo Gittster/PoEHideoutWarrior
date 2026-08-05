@@ -107,6 +107,7 @@ export const DIVINATION_CARD_REWARDS: Record<string, DivinationCardReward> = {
   "Monochrome": { stackSize: 3, rewardQuantity: 1, rewardName: "Valdo's Puzzle Box", category: "Currency" },
   "No Traces": { stackSize: 9, rewardQuantity: 30, rewardName: "Orb of Scouring", category: "Currency" },
   "Outfoxed": { stackSize: 2, rewardQuantity: 1, rewardName: "Veiled Exalted Orb", category: "Currency" },
+  "Pearls Before Swine": { stackSize: 3, rewardQuantity: 1, rewardName: "Progenesis", category: "UniqueFlask" },
   "Poisoned Faith": { stackSize: 8, rewardQuantity: 1, rewardName: "Arakaali's Fang", category: "UniqueWeapon" },
   "Pride Before the Fall": { stackSize: 8, rewardQuantity: 1, rewardName: "Kaom's Heart", category: "UniqueArmour" },
   "Pride of the First Ones": { stackSize: 7, rewardQuantity: 1, rewardName: "Farrul's Fur", category: "UniqueArmour" },
