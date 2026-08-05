@@ -86,7 +86,10 @@ function toRow(line: NinjaLine, meta: NinjaItemMeta): PoeNinjaItem {
   if (variant) variantParts.push(variant);
 
   return {
-    id: String(line.id ?? line.detailsId ?? name),
+    // Prefer detailsId - it's the slug the exchange "details" endpoint
+    // expects (see fetchPoeNinjaItemHistory), whereas plain `id` isn't
+    // guaranteed to be.
+    id: String(line.detailsId ?? line.id ?? name),
     name,
     chaosValue: price,
     variant: variantParts.join(", "),
@@ -131,4 +134,67 @@ export async function fetchPoeNinjaCategory(
   }
 
   return [];
+}
+
+export interface PriceHistoryPoint {
+  date: string;
+  chaosValue: number;
+}
+
+export interface PriceHistory {
+  itemName: string;
+  points: PriceHistoryPoint[];
+}
+
+interface NinjaHistoryEntry {
+  timestamp: string;
+  rate: number;
+}
+
+interface NinjaPair {
+  id: string;
+  rate?: number;
+  history?: NinjaHistoryEntry[];
+}
+
+interface NinjaDetailsResponse {
+  item?: { name?: string };
+  pairs?: NinjaPair[];
+}
+
+// The per-item price history behind the "click an item for a chart" feature.
+// This is poe.ninja's bulk-currency-exchange "details" endpoint - it returns
+// daily rate history for trading the item against chaos (and divine), which
+// is what the exchange order book actually is, not a description of what the
+// item "converts into" (see divinationCardRewards.ts for why that's a
+// separate, hand-maintained thing).
+export async function fetchPoeNinjaItemHistory(
+  categoryInput: string,
+  itemId: string,
+  league: string,
+): Promise<PriceHistory | null> {
+  const category = normalizeCategory(categoryInput);
+  const url = `https://poe.ninja/poe1/api/economy/exchange/current/details?league=${encodeURIComponent(league)}&type=${encodeURIComponent(category)}&id=${encodeURIComponent(itemId)}`;
+
+  try {
+    const res = await fetch(url, {
+      headers: { accept: "application/json" },
+      next: { revalidate: 600 },
+    });
+    if (!res.ok) return null;
+
+    const json = (await res.json()) as NinjaDetailsResponse;
+    const chaosPair = json.pairs?.find((pair) => pair.id === "chaos");
+    const history = chaosPair?.history ?? [];
+    if (history.length === 0) return null;
+
+    // poe.ninja returns newest-first; charts read left-to-right chronologically.
+    const points = [...history]
+      .reverse()
+      .map((entry) => ({ date: entry.timestamp, chaosValue: entry.rate }));
+
+    return { itemName: json.item?.name ?? itemId, points };
+  } catch {
+    return null;
+  }
 }

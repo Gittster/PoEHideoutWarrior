@@ -12,15 +12,10 @@ import {
 } from "@/lib/arbitrage/overrides";
 import type { ArbitrageTechnique } from "@/lib/arbitrage/techniques";
 import type { PoeNinjaItem } from "@/lib/poeninja";
+import { formatChaos } from "@/lib/format";
+import { PriceHistoryModal } from "@/components/PriceHistoryModal";
 
 const PAGE_SIZE = 40;
-
-function formatChaos(value: number): string {
-  if (!Number.isFinite(value)) return "-";
-  if (value >= 1000) return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
-  if (value >= 10) return value.toFixed(1);
-  return value.toFixed(2);
-}
 
 function marginColorClass(margin: number): string {
   if (margin > 0) return "text-[var(--good)]";
@@ -41,12 +36,12 @@ function buildRow(
   item: PoeNinjaItem,
   overrides: OverrideMap,
   technique: ArbitrageTechnique,
-  rewardPrices: Record<string, number>,
+  rewardPrices: Record<string, { id: string; chaosValue: number }>,
 ) {
   const reward = technique.rewardConfig?.rewards[item.name];
-  const rewardPrice = reward ? rewardPrices[reward.rewardName.toLowerCase()] : undefined;
+  const rewardEntry = reward ? rewardPrices[reward.rewardName.toLowerCase()] : undefined;
   const computedRewardValue =
-    reward && rewardPrice !== undefined ? reward.rewardQuantity * rewardPrice : undefined;
+    reward && rewardEntry !== undefined ? reward.rewardQuantity * rewardEntry.chaosValue : undefined;
   const stackSize = reward?.stackSize ?? 1;
 
   const override = overrides[item.id];
@@ -55,7 +50,17 @@ function buildRow(
   const stackCost = buy * stackSize;
   const margin = sell - stackCost;
   const marginPercent = stackCost > 0 ? (margin / stackCost) * 100 : 0;
-  return { item, reward, computedRewardValue, buy, sell, stackCost, margin, marginPercent };
+  return {
+    item,
+    reward,
+    rewardItemId: rewardEntry?.id,
+    computedRewardValue,
+    buy,
+    sell,
+    stackCost,
+    margin,
+    marginPercent,
+  };
 }
 
 export function OpportunityTable({ technique }: { technique: ArbitrageTechnique }) {
@@ -76,7 +81,15 @@ function OpportunityTableForLeague({
   const [items, setItems] = useState<PoeNinjaItem[] | null>(null);
   // Reward-item prices (e.g. Currency), only fetched when the technique has
   // a rewardConfig. Keyed by lowercased item name.
-  const [rewardPrices, setRewardPrices] = useState<Record<string, number>>({});
+  const [rewardPrices, setRewardPrices] = useState<Record<string, { id: string; chaosValue: number }>>(
+    {},
+  );
+  // The item currently shown in the price-history popup, or null if closed.
+  const [historyTarget, setHistoryTarget] = useState<{
+    category: string;
+    itemId: string;
+    itemName: string;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -114,8 +127,10 @@ function OpportunityTableForLeague({
       .then(([data, rewardData]) => {
         if (cancelled) return;
         setItems(data);
-        const priceMap: Record<string, number> = {};
-        for (const row of rewardData) priceMap[row.name.toLowerCase()] = row.chaosValue;
+        const priceMap: Record<string, { id: string; chaosValue: number }> = {};
+        for (const row of rewardData) {
+          priceMap[row.name.toLowerCase()] = { id: row.id, chaosValue: row.chaosValue };
+        }
         setRewardPrices(priceMap);
         setVisibleCount(PAGE_SIZE);
       })
@@ -260,7 +275,7 @@ function OpportunityTableForLeague({
               </tr>
             </thead>
             <tbody>
-              {visibleRows.map(({ item, reward, computedRewardValue, buy, sell, stackCost, margin, marginPercent }) => {
+              {visibleRows.map(({ item, reward, rewardItemId, computedRewardValue, buy, sell, stackCost, margin, marginPercent }) => {
                 const isOpportunity = margin > 0 && marginPercent >= threshold;
                 const buySliderMax = Math.max(item.chaosValue * 2, 10);
                 const sellSliderMax = Math.max(sell * 2, item.chaosValue * 2, 10);
@@ -272,7 +287,19 @@ function OpportunityTableForLeague({
                     }`}
                   >
                     <td className="px-3 py-2">
-                      <div className="font-medium">{item.name}</div>
+                      <button
+                        onClick={() =>
+                          setHistoryTarget({
+                            category: technique.category,
+                            itemId: item.id,
+                            itemName: item.name,
+                          })
+                        }
+                        className="font-medium underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
+                        title="View price history"
+                      >
+                        {item.name}
+                      </button>
                       {item.variant && (
                         <div className="text-xs text-[var(--muted)]">{item.variant}</div>
                       )}
@@ -284,7 +311,24 @@ function OpportunityTableForLeague({
                           <>
                             <div>
                               {reward.stackSize > 1 ? `${reward.stackSize}x stack -> ` : ""}
-                              {reward.rewardQuantity}x {reward.rewardName}
+                              {reward.rewardQuantity}x{" "}
+                              {rewardItemId && technique.rewardConfig ? (
+                                <button
+                                  onClick={() =>
+                                    setHistoryTarget({
+                                      category: technique.rewardConfig!.priceCategory,
+                                      itemId: rewardItemId,
+                                      itemName: reward.rewardName,
+                                    })
+                                  }
+                                  className="underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
+                                  title="View price history"
+                                >
+                                  {reward.rewardName}
+                                </button>
+                              ) : (
+                                reward.rewardName
+                              )}
                             </div>
                             <div className="text-xs text-[var(--muted)]">
                               {computedRewardValue !== undefined
@@ -383,6 +427,16 @@ function OpportunityTableForLeague({
         >
           Show more ({rows.length - visibleCount} remaining)
         </button>
+      )}
+
+      {historyTarget && (
+        <PriceHistoryModal
+          category={historyTarget.category}
+          itemId={historyTarget.itemId}
+          itemName={historyTarget.itemName}
+          league={league}
+          onClose={() => setHistoryTarget(null)}
+        />
       )}
     </div>
   );
