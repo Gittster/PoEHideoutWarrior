@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
   const category = request.nextUrl.searchParams.get("category");
   const id = request.nextUrl.searchParams.get("id");
   const league = request.nextUrl.searchParams.get("league");
+  const rawId = request.nextUrl.searchParams.get("rawId") || undefined;
 
   if (!category || !id || !league) {
     return NextResponse.json(
@@ -16,13 +17,13 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const cacheKey = `${category}:${id}:${league}`;
+  const cacheKey = `${category}:${id}:${rawId ?? ""}:${league}`;
   const cached = cache.get(cacheKey);
   if (cached && cached.expires > Date.now()) {
     return NextResponse.json(cached.data);
   }
 
-  const history = await fetchPoeNinjaItemHistory(category, id, league);
+  const history = await fetchPoeNinjaItemHistory(category, id, league, rawId);
   if (!history) {
     return NextResponse.json(
       { error: `No price history available for "${id}" in league "${league}"` },

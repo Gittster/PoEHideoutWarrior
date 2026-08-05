@@ -38,13 +38,15 @@ function buildRow(
   item: PoeNinjaItem,
   overrides: OverrideMap,
   technique: ArbitrageTechnique,
-  rewardPrices: Record<string, number>,
+  rewardPrices: Record<string, { chaosValue: number; ninjaId: string }>,
 ) {
   const reward = technique.rewardConfig?.rewards[item.name];
   // rewardPrice/sell are both PER UNIT of the reward item (mirrors `buy`
   // being per card, not per stack) - reward.rewardQuantity scales it up to
   // the full-stack payout, same as stackSize scales `buy` up to stack cost.
-  const rewardPrice = reward ? rewardPrices[reward.rewardName.toLowerCase()] : undefined;
+  const rewardEntry = reward ? rewardPrices[reward.rewardName.toLowerCase()] : undefined;
+  const rewardPrice = rewardEntry?.chaosValue;
+  const rewardNinjaId = rewardEntry?.ninjaId ?? "";
   const quantity = reward?.rewardQuantity ?? 1;
   const computedRewardValue = rewardPrice !== undefined ? rewardPrice * quantity : undefined;
   const stackSize = reward?.stackSize ?? 1;
@@ -65,6 +67,7 @@ function buildRow(
   return {
     item,
     reward,
+    rewardNinjaId,
     computedRewardValue,
     priceUnknown,
     buy,
@@ -94,12 +97,15 @@ function OpportunityTableForLeague({
   const [items, setItems] = useState<PoeNinjaItem[] | null>(null);
   // Reward-item prices (e.g. Currency), only fetched when the technique has
   // a rewardConfig. Keyed by lowercased item name.
-  const [rewardPrices, setRewardPrices] = useState<Record<string, number>>({});
+  const [rewardPrices, setRewardPrices] = useState<
+    Record<string, { chaosValue: number; ninjaId: string }>
+  >({});
   // The item currently shown in the price-history popup, or null if closed.
   const [historyTarget, setHistoryTarget] = useState<{
     category: string;
     itemId: string;
     itemName: string;
+    rawId: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -143,9 +149,11 @@ function OpportunityTableForLeague({
       .then(([data, rewardDataByCategory]) => {
         if (cancelled) return;
         setItems(data);
-        const priceMap: Record<string, number> = {};
+        const priceMap: Record<string, { chaosValue: number; ninjaId: string }> = {};
         for (const rewardData of rewardDataByCategory) {
-          for (const row of rewardData) priceMap[row.name.toLowerCase()] = row.chaosValue;
+          for (const row of rewardData) {
+            priceMap[row.name.toLowerCase()] = { chaosValue: row.chaosValue, ninjaId: row.ninjaId };
+          }
         }
         setRewardPrices(priceMap);
         setVisibleCount(PAGE_SIZE);
@@ -297,7 +305,7 @@ function OpportunityTableForLeague({
               </tr>
             </thead>
             <tbody>
-              {visibleRows.map(({ item, reward, computedRewardValue, priceUnknown, buy, sell, stackCost, rewardTotal, margin, marginPercent }) => {
+              {visibleRows.map(({ item, reward, rewardNinjaId, computedRewardValue, priceUnknown, buy, sell, stackCost, rewardTotal, margin, marginPercent }) => {
                 const isOpportunity = margin !== null && margin > 0 && marginPercent !== null && marginPercent >= threshold;
                 const buySliderMax = Math.max(item.chaosValue * 2, 10);
                 // Based on `sell` alone (not item.chaosValue) - sell is now a
@@ -318,6 +326,7 @@ function OpportunityTableForLeague({
                             category: technique.category,
                             itemId: slugify(item.name),
                             itemName: item.name,
+                            rawId: item.ninjaId,
                           })
                         }
                         className="font-medium underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
@@ -343,6 +352,7 @@ function OpportunityTableForLeague({
                                     category: reward.category,
                                     itemId: slugify(reward.rewardName),
                                     itemName: reward.rewardName,
+                                    rawId: rewardNinjaId,
                                   })
                                 }
                                 className="underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
@@ -463,6 +473,7 @@ function OpportunityTableForLeague({
           category={historyTarget.category}
           itemId={historyTarget.itemId}
           itemName={historyTarget.itemName}
+          rawId={historyTarget.rawId}
           league={league}
           onClose={() => setHistoryTarget(null)}
         />

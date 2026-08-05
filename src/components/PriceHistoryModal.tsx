@@ -8,6 +8,10 @@ interface Props {
   category: string;
   itemId: string;
   itemName: string;
+  /** poe.ninja's internal numeric id, used as a fallback lookup for items
+   * (uniques, gems, ...) priced via the "stash" pipeline rather than the
+   * slug-keyed "exchange" one. Empty string if unavailable. */
+  rawId: string;
   league: string;
   onClose: () => void;
 }
@@ -152,7 +156,7 @@ function Chart({ points }: { points: PriceHistoryPoint[] }) {
   );
 }
 
-export function PriceHistoryModal({ category, itemId, itemName, league, onClose }: Props) {
+export function PriceHistoryModal({ category, itemId, itemName, rawId, league, onClose }: Props) {
   const [points, setPoints] = useState<PriceHistoryPoint[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -160,8 +164,9 @@ export function PriceHistoryModal({ category, itemId, itemName, league, onClose 
 
   useEffect(() => {
     let cancelled = false;
+    const rawIdParam = rawId ? `&rawId=${encodeURIComponent(rawId)}` : "";
     fetch(
-      `/api/poeninja/details?category=${encodeURIComponent(category)}&id=${encodeURIComponent(itemId)}&league=${encodeURIComponent(league)}`,
+      `/api/poeninja/details?category=${encodeURIComponent(category)}&id=${encodeURIComponent(itemId)}&league=${encodeURIComponent(league)}${rawIdParam}`,
     )
       .then(async (res) => {
         const body = await res.json();
@@ -180,7 +185,7 @@ export function PriceHistoryModal({ category, itemId, itemName, league, onClose 
     return () => {
       cancelled = true;
     };
-  }, [category, itemId, league]);
+  }, [category, itemId, league, rawId]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

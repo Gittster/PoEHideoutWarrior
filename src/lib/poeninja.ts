@@ -9,6 +9,13 @@ export interface PoeNinjaItem {
   name: string;
   chaosValue: number;
   variant: string;
+  /**
+   * The raw numeric id poe.ninja's "stash" pricing pipeline uses (distinct
+   * from `id`, which favors the human-readable detailsId slug). Needed for
+   * fetchPoeNinjaItemHistory's stash/current/item/history fallback - see
+   * there for why. Empty string when the line doesn't have one.
+   */
+  ninjaId: string;
 }
 
 const CATEGORY_ALIASES: Record<string, string> = {
@@ -93,6 +100,7 @@ function toRow(line: NinjaLine, meta: NinjaItemMeta): PoeNinjaItem {
     name,
     chaosValue: price,
     variant: variantParts.join(", "),
+    ninjaId: line.id !== undefined ? String(line.id) : "",
   };
 }
 
@@ -162,39 +170,103 @@ interface NinjaDetailsResponse {
   pairs?: NinjaPair[];
 }
 
+interface NinjaStashHistoryEntry {
+  count: number;
+  value: number;
+  daysAgo: number;
+}
+
+async function fetchExchangeHistory(
+  category: string,
+  slugId: string,
+  league: string,
+): Promise<PriceHistory | null> {
+  const url = `https://poe.ninja/poe1/api/economy/exchange/current/details?league=${encodeURIComponent(league)}&type=${encodeURIComponent(category)}&id=${encodeURIComponent(slugId)}`;
+  const res = await fetch(url, {
+    headers: { accept: "application/json" },
+    next: { revalidate: 600 },
+  });
+  if (!res.ok) return null;
+
+  const json = (await res.json()) as NinjaDetailsResponse;
+  const chaosPair = json.pairs?.find((pair) => pair.id === "chaos");
+  const history = chaosPair?.history ?? [];
+  if (history.length === 0) return null;
+
+  // poe.ninja returns newest-first here; charts read left-to-right chronologically.
+  const points = [...history]
+    .reverse()
+    .map((entry) => ({ date: entry.timestamp, chaosValue: entry.rate }));
+
+  return { itemName: json.item?.name ?? slugId, points };
+}
+
+async function fetchStashHistory(
+  category: string,
+  rawId: string,
+  league: string,
+): Promise<PriceHistory | null> {
+  const url = `https://poe.ninja/poe1/api/economy/stash/current/item/history?league=${encodeURIComponent(league)}&type=${encodeURIComponent(category)}&id=${encodeURIComponent(rawId)}`;
+  const res = await fetch(url, {
+    headers: { accept: "application/json" },
+    next: { revalidate: 600 },
+  });
+  if (!res.ok) return null;
+
+  const json = (await res.json()) as NinjaStashHistoryEntry[];
+  if (!Array.isArray(json) || json.length === 0) return null;
+
+  const now = Date.now();
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  // Already oldest-first (daysAgo descending) in practice, but sort
+  // defensively rather than assume poe.ninja's ordering is guaranteed.
+  const points = [...json]
+    .sort((a, b) => b.daysAgo - a.daysAgo)
+    .map((entry) => ({
+      date: new Date(now - entry.daysAgo * DAY_MS).toISOString(),
+      chaosValue: entry.value,
+    }));
+
+  return { itemName: rawId, points };
+}
+
 // The per-item price history behind the "click an item for a chart" feature.
-// This is poe.ninja's bulk-currency-exchange "details" endpoint - it returns
-// daily rate history for trading the item against chaos (and divine), which
-// is what the exchange order book actually is, not a description of what the
-// item "converts into" (see divinationCardRewards.ts for why that's a
-// separate, hand-maintained thing).
+// poe.ninja splits pricing across two different pipelines depending on the
+// item type (mirroring the stash/item/exchange split in buildEndpoints
+// above), and each has its own, incompatible history endpoint:
+//  - "exchange" items (Currency, Fragment, DivinationCard, ...) - keyed by a
+//    human-readable slug (e.g. "reflecting-mist"), history comes from
+//    exchange/current/details' `pairs[].history`.
+//  - "stash" items (unique items, gems, ...) - keyed by an internal numeric
+//    id (e.g. 2089, poe.ninja's PoeNinjaItem.ninjaId), history comes from
+//    stash/current/item/history as a flat {value, daysAgo}[] array.
+// Try the slug/exchange route first (the common case), and only fall back to
+// the numeric/stash route if that comes back empty and a rawId was given -
+// see divinationCardRewards.ts for why that's a separate, hand-maintained
+// thing from what the reward mapping itself describes.
 export async function fetchPoeNinjaItemHistory(
   categoryInput: string,
   itemId: string,
   league: string,
+  rawId?: string,
 ): Promise<PriceHistory | null> {
   const category = normalizeCategory(categoryInput);
-  const url = `https://poe.ninja/poe1/api/economy/exchange/current/details?league=${encodeURIComponent(league)}&type=${encodeURIComponent(category)}&id=${encodeURIComponent(itemId)}`;
 
   try {
-    const res = await fetch(url, {
-      headers: { accept: "application/json" },
-      next: { revalidate: 600 },
-    });
-    if (!res.ok) return null;
-
-    const json = (await res.json()) as NinjaDetailsResponse;
-    const chaosPair = json.pairs?.find((pair) => pair.id === "chaos");
-    const history = chaosPair?.history ?? [];
-    if (history.length === 0) return null;
-
-    // poe.ninja returns newest-first; charts read left-to-right chronologically.
-    const points = [...history]
-      .reverse()
-      .map((entry) => ({ date: entry.timestamp, chaosValue: entry.rate }));
-
-    return { itemName: json.item?.name ?? itemId, points };
+    const bySlug = await fetchExchangeHistory(category, itemId, league);
+    if (bySlug) return bySlug;
   } catch {
-    return null;
+    // Fall through to the stash-history attempt.
   }
+
+  if (rawId) {
+    try {
+      const byRawId = await fetchStashHistory(category, rawId, league);
+      if (byRawId) return byRawId;
+    } catch {
+      // Both attempts failed - fall through to the null return below.
+    }
+  }
+
+  return null;
 }
