@@ -8,7 +8,7 @@ export function Nav() {
 
   return (
     <header className="border-b border-[var(--border)] bg-[var(--surface)]">
-      <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <Link href="/" className="text-lg font-semibold tracking-tight">
           <span className="text-[var(--accent)]">Hideout</span> Warrior
         </Link>

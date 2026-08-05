@@ -90,7 +90,9 @@ function OpportunityTableForLeague({
     loadThreshold(league, technique.slug, technique.defaultThresholdPercent),
   );
   const [search, setSearch] = useState("");
-  const [sortMode, setSortMode] = useState<"value" | "marginTotal" | "marginPercent">("value");
+  const [sortMode, setSortMode] = useState<"value" | "marginTotal" | "marginPercent">(
+    "marginPercent",
+  );
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   // Fetch live prices on mount (and if the technique's category ever changes).
@@ -243,7 +245,7 @@ function OpportunityTableForLeague({
       )}
 
       {!loading && !error && rows.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-[var(--border)]">
+        <div className="scroll-x-visible overflow-x-auto rounded-lg border border-[var(--border)]">
           <table className="w-full min-w-[820px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-[var(--border)] bg-[var(--surface-alt)] text-left text-xs text-[var(--muted)]">
@@ -306,7 +308,7 @@ function OpportunityTableForLeague({
                           onChange={(e) =>
                             updateOverride(item.id, { buy: Number(e.target.value), sell })
                           }
-                          className="w-24"
+                          className="w-16"
                         />
                         <input
                           type="number"
@@ -334,7 +336,7 @@ function OpportunityTableForLeague({
                           onChange={(e) =>
                             updateOverride(item.id, { buy, sell: Number(e.target.value) })
                           }
-                          className="w-24"
+                          className="w-16"
                         />
                         <input
                           type="number"

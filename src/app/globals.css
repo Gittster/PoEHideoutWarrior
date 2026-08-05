@@ -32,3 +32,24 @@ body {
 input[type="range"] {
   accent-color: var(--accent);
 }
+
+/* Wide tables (e.g. the opportunity finder) scroll horizontally within their
+   own box rather than blowing out the page - keep the scrollbar always
+   visible (not an overlay-on-hover one) so that's obvious. */
+.scroll-x-visible {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.scroll-x-visible::-webkit-scrollbar {
+  height: 10px;
+}
+
+.scroll-x-visible::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroll-x-visible::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 999px;
+}
