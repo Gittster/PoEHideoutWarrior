@@ -1,0 +1,317 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useLeague } from "@/lib/league-context";
+import {
+  loadOverrides,
+  loadThreshold,
+  saveOverrides,
+  saveThreshold,
+  type OverrideMap,
+} from "@/lib/arbitrage/overrides";
+import type { ArbitrageTechnique } from "@/lib/arbitrage/techniques";
+
+interface PoeNinjaItem {
+  id: string;
+  name: string;
+  chaosValue: number;
+  variant: string;
+}
+
+const PAGE_SIZE = 40;
+
+function formatChaos(value: number): string {
+  if (!Number.isFinite(value)) return "-";
+  if (value >= 1000) return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  if (value >= 10) return value.toFixed(1);
+  return value.toFixed(2);
+}
+
+export function OpportunityTable({ technique }: { technique: ArbitrageTechnique }) {
+  const { league } = useLeague();
+  // Keying on league forces a clean remount on league switch, so overrides
+  // and thresholds can be lazily initialized from storage instead of synced
+  // via an effect.
+  return <OpportunityTableForLeague key={league} technique={technique} league={league} />;
+}
+
+function OpportunityTableForLeague({
+  technique,
+  league,
+}: {
+  technique: ArbitrageTechnique;
+  league: string;
+}) {
+  const [items, setItems] = useState<PoeNinjaItem[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // The parent page mounts this component with key={league}, so these lazy
+  // initializers re-run fresh on every league switch instead of needing an
+  // effect to re-sync them.
+  const [overrides, setOverrides] = useState<OverrideMap>(() =>
+    loadOverrides(league, technique.slug),
+  );
+  const [threshold, setThresholdState] = useState(() =>
+    loadThreshold(league, technique.slug, technique.defaultThresholdPercent),
+  );
+  const [search, setSearch] = useState("");
+  const [sortMode, setSortMode] = useState<"value" | "margin">("value");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // Fetch live prices on mount (and if the technique's category ever changes).
+  useEffect(() => {
+    let cancelled = false;
+    // Resetting loading/error at the start of each fetch is the standard
+    // data-fetching-in-an-effect pattern; this effect is keyed to (re)mount
+    // per league via the parent, so it isn't a runaway re-render loop.
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setLoading(true);
+    setError(null);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    fetch(`/api/poeninja?category=${encodeURIComponent(technique.category)}&league=${encodeURIComponent(league)}`)
+      .then(async (res) => {
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || "Failed to load prices");
+        return body.items as PoeNinjaItem[];
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setItems(data);
+        setVisibleCount(PAGE_SIZE);
+      })
+      .catch((err: Error) => {
+        if (cancelled) return;
+        setError(err.message);
+        setItems(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [league, technique.category]);
+
+  const updateOverride = (id: string, next: OverrideMap[string]) => {
+    setOverrides((prev) => {
+      const merged = { ...prev, [id]: next };
+      saveOverrides(league, technique.slug, merged);
+      return merged;
+    });
+  };
+
+  const resetOverride = (id: string) => {
+    setOverrides((prev) => {
+      const merged = { ...prev };
+      delete merged[id];
+      saveOverrides(league, technique.slug, merged);
+      return merged;
+    });
+  };
+
+  const updateThreshold = (value: number) => {
+    setThresholdState(value);
+    saveThreshold(league, technique.slug, value);
+  };
+
+  const rows = useMemo(() => {
+    if (!items) return [];
+    const withMargin = items
+      .filter((item) => item.name.toLowerCase().includes(search.toLowerCase()))
+      .map((item) => {
+        const override = overrides[item.id];
+        const buy = override?.buy ?? item.chaosValue;
+        const sell = override?.sell ?? item.chaosValue;
+        const margin = sell - buy;
+        const marginPercent = buy > 0 ? (margin / buy) * 100 : 0;
+        return { item, buy, sell, margin, marginPercent };
+      });
+
+    return withMargin.sort((a, b) =>
+      sortMode === "value" ? b.item.chaosValue - a.item.chaosValue : b.marginPercent - a.marginPercent,
+    );
+  }, [items, overrides, search, sortMode]);
+
+  const visibleRows = rows.slice(0, visibleCount);
+  const opportunityCount = rows.filter((r) => r.margin > 0 && r.marginPercent >= threshold).length;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-end gap-6 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-[var(--muted)]">
+            Opportunity threshold: {threshold.toFixed(0)}% margin
+          </label>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={threshold}
+            onChange={(e) => updateThreshold(Number(e.target.value))}
+            className="w-48"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-[var(--muted)]">Search</label>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Filter by name..."
+            className="rounded-md border border-[var(--border)] bg-[var(--surface-alt)] px-2 py-1 text-sm outline-none focus:border-[var(--accent)]"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-[var(--muted)]">Sort by</label>
+          <select
+            value={sortMode}
+            onChange={(e) => setSortMode(e.target.value as "value" | "margin")}
+            className="rounded-md border border-[var(--border)] bg-[var(--surface-alt)] px-2 py-1 text-sm outline-none focus:border-[var(--accent)]"
+          >
+            <option value="value">Market value</option>
+            <option value="margin">Margin %</option>
+          </select>
+        </div>
+
+        <div className="ml-auto text-sm text-[var(--muted)]">
+          <span className="font-medium text-[var(--good)]">{opportunityCount}</span> opportunities
+          at or above threshold
+        </div>
+      </div>
+
+      {loading && <p className="text-sm text-[var(--muted)]">Loading live prices for {league}...</p>}
+      {error && (
+        <p className="text-sm text-[var(--bad)]">
+          {error}. Double check the league name on the{" "}
+          <a href="/config" className="underline">
+            config page
+          </a>
+          .
+        </p>
+      )}
+
+      {!loading && !error && rows.length > 0 && (
+        <div className="overflow-x-auto rounded-lg border border-[var(--border)]">
+          <table className="w-full min-w-[820px] border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-[var(--border)] bg-[var(--surface-alt)] text-left text-xs text-[var(--muted)]">
+                <th className="px-3 py-2 font-medium">Item</th>
+                <th className="px-3 py-2 font-medium">Market (chaos)</th>
+                <th className="px-3 py-2 font-medium">{technique.buyLabel}</th>
+                <th className="px-3 py-2 font-medium">{technique.sellLabel}</th>
+                <th className="px-3 py-2 font-medium">Margin</th>
+                <th className="px-3 py-2 font-medium"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleRows.map(({ item, buy, sell, margin, marginPercent }) => {
+                const isOpportunity = margin > 0 && marginPercent >= threshold;
+                const sliderMax = Math.max(item.chaosValue * 2, 10);
+                return (
+                  <tr
+                    key={item.id}
+                    className={`border-b border-[var(--border)] last:border-0 ${
+                      isOpportunity ? "bg-[color-mix(in_srgb,var(--good)_12%,transparent)]" : ""
+                    }`}
+                  >
+                    <td className="px-3 py-2">
+                      <div className="font-medium">{item.name}</div>
+                      {item.variant && (
+                        <div className="text-xs text-[var(--muted)]">{item.variant}</div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">{formatChaos(item.chaosValue)}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={0}
+                          max={sliderMax}
+                          step={sliderMax / 200}
+                          value={buy}
+                          onChange={(e) =>
+                            updateOverride(item.id, { buy: Number(e.target.value), sell })
+                          }
+                          className="w-24"
+                        />
+                        <input
+                          type="number"
+                          value={Number(buy.toFixed(2))}
+                          onChange={(e) =>
+                            updateOverride(item.id, { buy: Number(e.target.value) || 0, sell })
+                          }
+                          className="w-16 rounded border border-[var(--border)] bg-[var(--surface-alt)] px-1 py-0.5 text-xs"
+                        />
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={0}
+                          max={sliderMax}
+                          step={sliderMax / 200}
+                          value={sell}
+                          onChange={(e) =>
+                            updateOverride(item.id, { buy, sell: Number(e.target.value) })
+                          }
+                          className="w-24"
+                        />
+                        <input
+                          type="number"
+                          value={Number(sell.toFixed(2))}
+                          onChange={(e) =>
+                            updateOverride(item.id, { buy, sell: Number(e.target.value) || 0 })
+                          }
+                          className="w-16 rounded border border-[var(--border)] bg-[var(--surface-alt)] px-1 py-0.5 text-xs"
+                        />
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span
+                        className={
+                          margin > 0
+                            ? "text-[var(--good)]"
+                            : margin < 0
+                              ? "text-[var(--bad)]"
+                              : "text-[var(--muted)]"
+                        }
+                      >
+                        {margin >= 0 ? "+" : ""}
+                        {formatChaos(margin)} ({marginPercent.toFixed(0)}%)
+                      </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      <button
+                        onClick={() => resetOverride(item.id)}
+                        className="text-xs text-[var(--muted)] underline hover:text-[var(--foreground)]"
+                      >
+                        reset
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {!loading && !error && rows.length === 0 && (
+        <p className="text-sm text-[var(--muted)]">No items matched.</p>
+      )}
+
+      {visibleCount < rows.length && (
+        <button
+          onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+          className="self-start rounded-md border border-[var(--border)] px-4 py-2 text-sm text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--foreground)]"
+        >
+          Show more ({rows.length - visibleCount} remaining)
+        </button>
+      )}
+    </div>
+  );
+}
