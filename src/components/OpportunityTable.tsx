@@ -197,8 +197,14 @@ function OpportunityTableForLeague({
 
   const filteredItems = useMemo(() => {
     if (!items) return [];
-    return items.filter((item) => item.name.toLowerCase().includes(search.toLowerCase()));
-  }, [items, search]);
+    const term = search.trim().toLowerCase();
+    if (!term) return items;
+    return items.filter((item) => {
+      if (item.name.toLowerCase().includes(term)) return true;
+      const reward = technique.rewardConfig?.rewards[item.name];
+      return reward ? reward.rewardName.toLowerCase().includes(term) : false;
+    });
+  }, [items, search, technique]);
 
   // Row order is intentionally NOT recomputed when `overrides` changes: if it
   // were, dragging a slider on a margin-sorted table would move that row out
@@ -254,7 +260,7 @@ function OpportunityTableForLeague({
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Filter by name..."
+            placeholder="Filter by item or reward name..."
             className="rounded-md border border-[var(--border)] bg-[var(--surface-alt)] px-2 py-1 text-sm outline-none focus:border-[var(--accent)]"
           />
         </div>
