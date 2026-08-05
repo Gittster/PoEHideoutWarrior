@@ -1,4 +1,4 @@
-import { DIVINATION_CARD_REWARDS } from "@/lib/arbitrage/divinationCardRewards";
+import { DIVINATION_CARD_REWARDS, type DivinationCardReward } from "@/lib/arbitrage/divinationCardRewards";
 
 export interface ArbitrageTechnique {
   slug: string;
@@ -16,16 +16,14 @@ export interface ArbitrageTechnique {
   /**
    * Optional: for techniques where a row's true payout comes from a known
    * static reward (e.g. a divination card's full-stack payout) rather than
-   * the item's own poe.ninja price. When set, the table also fetches
-   * `priceCategory` and uses it to price each row's reward, pre-filling the
-   * sell slider with `rewardQuantity * rewardPrice` and using `stackSize` to
-   * scale the buy side into a full-stack cost.
+   * the item's own poe.ninja price. When set, the table also fetches the
+   * poe.ninja category(ies) named on each reward and uses it to price that
+   * reward, pre-filling the sell slider with the per-unit price and using
+   * `stackSize` to scale the buy side into a full-stack cost.
    */
   rewardConfig?: {
-    /** poe.ninja category to fetch reward prices from, e.g. "Currency" */
-    priceCategory: string;
     /** Keyed by the row's item name (e.g. divination card name) */
-    rewards: Record<string, { stackSize: number; rewardQuantity: number; rewardName: string }>;
+    rewards: Record<string, DivinationCardReward>;
   };
 }
 
@@ -77,7 +75,6 @@ export const ARBITRAGE_TECHNIQUES: ArbitrageTechnique[] = [
     buyLabel: "Your cost per card (chaos)",
     sellLabel: "Reward price per unit (chaos)",
     rewardConfig: {
-      priceCategory: "Currency",
       rewards: DIVINATION_CARD_REWARDS,
     },
   },

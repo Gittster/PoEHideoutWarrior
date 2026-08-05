@@ -18,7 +18,8 @@ import { PriceHistoryModal } from "@/components/PriceHistoryModal";
 
 const PAGE_SIZE = 40;
 
-function marginColorClass(margin: number): string {
+function marginColorClass(margin: number | null): string {
+  if (margin === null) return "text-[var(--muted)]";
   if (margin > 0) return "text-[var(--good)]";
   if (margin < 0) return "text-[var(--bad)]";
   return "text-[var(--muted)]";
@@ -50,12 +51,29 @@ function buildRow(
 
   const override = overrides[item.id];
   const buy = override?.buy ?? item.chaosValue;
-  const sell = override?.sell ?? rewardPrice ?? item.chaosValue;
+  // When a reward is defined but we have no live price for it AND the user
+  // hasn't set one manually, there is no honest number to show - falling
+  // back to the card's own price would silently produce a made-up margin
+  // (that price has nothing to do with the reward). Leave it unpriced
+  // instead: sell defaults to 0 and margin is null until a real value exists.
+  const priceUnknown = Boolean(reward) && rewardPrice === undefined && override?.sell === undefined;
+  const sell = override?.sell ?? rewardPrice ?? (reward ? 0 : item.chaosValue);
   const stackCost = buy * stackSize;
   const rewardTotal = sell * quantity;
-  const margin = rewardTotal - stackCost;
-  const marginPercent = stackCost > 0 ? (margin / stackCost) * 100 : 0;
-  return { item, reward, computedRewardValue, buy, sell, stackCost, rewardTotal, margin, marginPercent };
+  const margin = priceUnknown ? null : rewardTotal - stackCost;
+  const marginPercent = margin === null ? null : stackCost > 0 ? (margin / stackCost) * 100 : 0;
+  return {
+    item,
+    reward,
+    computedRewardValue,
+    priceUnknown,
+    buy,
+    sell,
+    stackCost,
+    rewardTotal,
+    margin,
+    marginPercent,
+  };
 }
 
 export function OpportunityTable({ technique }: { technique: ArbitrageTechnique }) {
@@ -112,16 +130,23 @@ function OpportunityTableForLeague({
     setError(null);
     /* eslint-enable react-hooks/set-state-in-effect */
 
-    const rewardCategory = technique.rewardConfig?.priceCategory;
+    // Rewards can live in several different poe.ninja categories (Currency,
+    // Fragment, Essence, Fossil, ...) - fetch each one referenced, not just a
+    // single hardcoded category.
+    const rewardCategories = [
+      ...new Set(Object.values(technique.rewardConfig?.rewards ?? {}).map((r) => r.category)),
+    ];
     Promise.all([
       fetchCategory(technique.category, league),
-      rewardCategory ? fetchCategory(rewardCategory, league).catch(() => []) : Promise.resolve([]),
+      Promise.all(rewardCategories.map((cat) => fetchCategory(cat, league).catch(() => []))),
     ])
-      .then(([data, rewardData]) => {
+      .then(([data, rewardDataByCategory]) => {
         if (cancelled) return;
         setItems(data);
         const priceMap: Record<string, number> = {};
-        for (const row of rewardData) priceMap[row.name.toLowerCase()] = row.chaosValue;
+        for (const rewardData of rewardDataByCategory) {
+          for (const row of rewardData) priceMap[row.name.toLowerCase()] = row.chaosValue;
+        }
         setRewardPrices(priceMap);
         setVisibleCount(PAGE_SIZE);
       })
@@ -136,7 +161,7 @@ function OpportunityTableForLeague({
     return () => {
       cancelled = true;
     };
-  }, [league, technique.category, technique.rewardConfig?.priceCategory]);
+  }, [league, technique]);
 
   const updateOverride = (id: string, next: OverrideMap[string]) => {
     setOverrides((prev) => {
@@ -178,7 +203,11 @@ function OpportunityTableForLeague({
       if (sortMode === "value") return b.chaosValue - a.chaosValue;
       const rowA = buildRow(a, overrides, technique, rewardPrices);
       const rowB = buildRow(b, overrides, technique, rewardPrices);
-      return sortMode === "marginTotal" ? rowB.margin - rowA.margin : rowB.marginPercent - rowA.marginPercent;
+      // Unpriced rows (margin === null) sort to the bottom rather than
+      // breaking the comparator or clustering at either extreme.
+      const valA = (sortMode === "marginTotal" ? rowA.margin : rowA.marginPercent) ?? -Infinity;
+      const valB = (sortMode === "marginTotal" ? rowB.margin : rowB.marginPercent) ?? -Infinity;
+      return valB - valA;
     });
     return sorted;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- see comment above: overrides is read but must not trigger a resort.
@@ -190,7 +219,9 @@ function OpportunityTableForLeague({
   );
 
   const visibleRows = rows.slice(0, visibleCount);
-  const opportunityCount = rows.filter((r) => r.margin > 0 && r.marginPercent >= threshold).length;
+  const opportunityCount = rows.filter(
+    (r) => r.margin !== null && r.margin > 0 && r.marginPercent !== null && r.marginPercent >= threshold,
+  ).length;
 
   return (
     <div className="flex flex-col gap-4">
@@ -266,8 +297,8 @@ function OpportunityTableForLeague({
               </tr>
             </thead>
             <tbody>
-              {visibleRows.map(({ item, reward, computedRewardValue, buy, sell, stackCost, rewardTotal, margin, marginPercent }) => {
-                const isOpportunity = margin > 0 && marginPercent >= threshold;
+              {visibleRows.map(({ item, reward, computedRewardValue, priceUnknown, buy, sell, stackCost, rewardTotal, margin, marginPercent }) => {
+                const isOpportunity = margin !== null && margin > 0 && marginPercent !== null && marginPercent >= threshold;
                 const buySliderMax = Math.max(item.chaosValue * 2, 10);
                 // Based on `sell` alone (not item.chaosValue) - sell is now a
                 // per-unit reward price, which can be a very different scale
@@ -309,7 +340,7 @@ function OpportunityTableForLeague({
                               <button
                                 onClick={() =>
                                   setHistoryTarget({
-                                    category: technique.rewardConfig!.priceCategory,
+                                    category: reward.category,
                                     itemId: slugify(reward.rewardName),
                                     itemName: reward.rewardName,
                                   })
@@ -381,19 +412,22 @@ function OpportunityTableForLeague({
                           className="w-24 rounded border border-[var(--border)] bg-[var(--surface-alt)] px-1 py-0.5 text-xs"
                         />
                       </div>
-                      {reward && reward.rewardQuantity > 1 && (
+                      {reward && priceUnknown && (
+                        <div className="mt-1 text-xs text-[var(--bad)]">
+                          No live price for this reward - set one to compute margin
+                        </div>
+                      )}
+                      {reward && !priceUnknown && reward.rewardQuantity > 1 && (
                         <div className="mt-1 text-xs text-[var(--muted)]">
                           Reward total ({reward.rewardQuantity}x): {formatChaos(rewardTotal)}c
                         </div>
                       )}
                     </td>
                     <td className={`px-3 py-2 whitespace-nowrap ${marginColorClass(margin)}`}>
-                      {margin >= 0 ? "+" : ""}
-                      {formatChaos(margin)}
+                      {margin === null ? "-" : `${margin >= 0 ? "+" : ""}${formatChaos(margin)}`}
                     </td>
                     <td className={`px-3 py-2 whitespace-nowrap ${marginColorClass(margin)}`}>
-                      {margin >= 0 ? "+" : ""}
-                      {marginPercent.toFixed(0)}%
+                      {marginPercent === null ? "-" : `${marginPercent >= 0 ? "+" : ""}${marginPercent.toFixed(0)}%`}
                     </td>
                     <td className="px-3 py-2">
                       <button
