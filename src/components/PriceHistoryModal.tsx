@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatChaos } from "@/lib/format";
 import type { PriceHistoryPoint } from "@/lib/poeninja";
+import { buildTradeSearchUrl } from "@/lib/tradeLink";
 
 interface Props {
   category: string;
@@ -223,17 +224,39 @@ export function PriceHistoryModal({ category, itemId, itemName, rawId, league, o
         </div>
 
         {loading && <p className="py-8 text-center text-sm text-[var(--muted)]">Loading...</p>}
-        {error && <p className="py-8 text-center text-sm text-[var(--bad)]">{error}</p>}
+        {error && (
+          <>
+            <p className="py-8 text-center text-sm text-[var(--bad)]">{error}</p>
+            <a
+              href={buildTradeSearchUrl(itemName, category, league)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-[var(--accent)] underline hover:text-[var(--foreground)]"
+            >
+              Search trade site ↗
+            </a>
+          </>
+        )}
 
         {!loading && !error && points && points.length > 0 && (
           <>
             <Chart points={points} />
-            <button
-              onClick={() => setShowTable((v) => !v)}
-              className="mt-2 text-xs text-[var(--muted)] underline hover:text-[var(--foreground)]"
-            >
-              {showTable ? "Hide" : "View"} as table
-            </button>
+            <div className="mt-2 flex items-center gap-4">
+              <button
+                onClick={() => setShowTable((v) => !v)}
+                className="text-xs text-[var(--muted)] underline hover:text-[var(--foreground)]"
+              >
+                {showTable ? "Hide" : "View"} as table
+              </button>
+              <a
+                href={buildTradeSearchUrl(itemName, category, league)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-[var(--accent)] underline hover:text-[var(--foreground)]"
+              >
+                Search trade site ↗
+              </a>
+            </div>
             {showTable && (
               <div className="mt-2 max-h-40 overflow-y-auto rounded border border-[var(--border)]">
                 <table className="w-full text-xs">
@@ -258,7 +281,17 @@ export function PriceHistoryModal({ category, itemId, itemName, rawId, league, o
         )}
 
         {!loading && !error && points && points.length === 0 && (
-          <p className="py-8 text-center text-sm text-[var(--muted)]">No history available.</p>
+          <>
+            <p className="py-8 text-center text-sm text-[var(--muted)]">No history available.</p>
+            <a
+              href={buildTradeSearchUrl(itemName, category, league)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-[var(--accent)] underline hover:text-[var(--foreground)]"
+            >
+              Search trade site ↗
+            </a>
+          </>
         )}
       </div>
     </div>
