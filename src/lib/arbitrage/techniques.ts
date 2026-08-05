@@ -1,3 +1,5 @@
+import { DIVINATION_CARD_REWARDS } from "@/lib/arbitrage/divinationCardRewards";
+
 export interface ArbitrageTechnique {
   slug: string;
   title: string;
@@ -11,6 +13,20 @@ export interface ArbitrageTechnique {
   defaultThresholdPercent: number;
   buyLabel: string;
   sellLabel: string;
+  /**
+   * Optional: for techniques where a row's true payout comes from a known
+   * static reward (e.g. a divination card's full-stack payout) rather than
+   * the item's own poe.ninja price. When set, the table also fetches
+   * `priceCategory` and uses it to price each row's reward, pre-filling the
+   * sell slider with `rewardQuantity * rewardPrice` and using `stackSize` to
+   * scale the buy side into a full-stack cost.
+   */
+  rewardConfig?: {
+    /** poe.ninja category to fetch reward prices from, e.g. "Currency" */
+    priceCategory: string;
+    /** Keyed by the row's item name (e.g. divination card name) */
+    rewards: Record<string, { stackSize: number; rewardQuantity: number; rewardName: string }>;
+  };
 }
 
 export const ARBITRAGE_TECHNIQUES: ArbitrageTechnique[] = [
@@ -44,8 +60,8 @@ export const ARBITRAGE_TECHNIQUES: ArbitrageTechnique[] = [
       "Buy undervalued divination cards and turn in full stacks for a reward worth more than the stack cost.",
     category: "DivinationCard",
     overview: [
-      "Each divination card has a set/stack size and a reward (an item or amount of currency) you get once you've collected the full stack and turn it in at a stash tab. poe.ninja's chaosValue for a card is already a per-card, stack-normalized estimate of that reward's value.",
-      "The opportunity is buying copies of a card for less than that per-card value, or reselling copies you find for more than you paid, once you account for the actual cost of assembling a full stack.",
+      "Each divination card has a stack size and a reward (an item or amount of currency) you get once you've collected the full stack and turn it in at a stash tab. For cards with a plain currency reward, this page looks up the reward's live price and computes the full-stack payout directly - Stack Cost (card price x stack size) vs Reward Value (reward quantity x reward price).",
+      "Cards without a mapped reward (mostly ones that give a unique item, rare item, or a random category rather than a fixed currency) fall back to comparing the card's own poe.ninja price against a manual sell price you set, same as before.",
     ],
     mechanics: [
       "Compare the total cost of buying a full stack against the resale value of the card's reward.",
@@ -53,12 +69,17 @@ export const ARBITRAGE_TECHNIQUES: ArbitrageTechnique[] = [
       "Bulk-buying a stack is usually cheaper per-card than buying singles - factor that into your 'buy' slider.",
     ],
     risks: [
+      "The card -> reward mapping is hand-maintained static data, not fetched live - GGG occasionally rebalances rewards between leagues, so double-check a card here before trusting it for a big trade.",
       "Reward items can themselves be illiquid - selling the payout may take longer than assembling the stack did.",
       "Some rewards are randomized within a range (e.g. currency shards), adding variance to the real payout.",
     ],
     defaultThresholdPercent: 15,
-    buyLabel: "Your cost per card (stack-adjusted, chaos)",
-    sellLabel: "Reward resale value (chaos)",
+    buyLabel: "Your cost per card (chaos)",
+    sellLabel: "Reward value override (chaos)",
+    rewardConfig: {
+      priceCategory: "Currency",
+      rewards: DIVINATION_CARD_REWARDS,
+    },
   },
   {
     slug: "essence-flipping",

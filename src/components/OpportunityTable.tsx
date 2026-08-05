@@ -22,6 +22,15 @@ function formatChaos(value: number): string {
   return value.toFixed(2);
 }
 
+async function fetchCategory(category: string, league: string): Promise<PoeNinjaItem[]> {
+  const res = await fetch(
+    `/api/poeninja?category=${encodeURIComponent(category)}&league=${encodeURIComponent(league)}`,
+  );
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.error || "Failed to load prices");
+  return body.items as PoeNinjaItem[];
+}
+
 export function OpportunityTable({ technique }: { technique: ArbitrageTechnique }) {
   const { league } = useLeague();
   // Keying on league forces a clean remount on league switch, so overrides
@@ -38,6 +47,9 @@ function OpportunityTableForLeague({
   league: string;
 }) {
   const [items, setItems] = useState<PoeNinjaItem[] | null>(null);
+  // Reward-item prices (e.g. Currency), only fetched when the technique has
+  // a rewardConfig. Keyed by lowercased item name.
+  const [rewardPrices, setRewardPrices] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -64,15 +76,18 @@ function OpportunityTableForLeague({
     setLoading(true);
     setError(null);
     /* eslint-enable react-hooks/set-state-in-effect */
-    fetch(`/api/poeninja?category=${encodeURIComponent(technique.category)}&league=${encodeURIComponent(league)}`)
-      .then(async (res) => {
-        const body = await res.json();
-        if (!res.ok) throw new Error(body.error || "Failed to load prices");
-        return body.items as PoeNinjaItem[];
-      })
-      .then((data) => {
+
+    const rewardCategory = technique.rewardConfig?.priceCategory;
+    Promise.all([
+      fetchCategory(technique.category, league),
+      rewardCategory ? fetchCategory(rewardCategory, league).catch(() => []) : Promise.resolve([]),
+    ])
+      .then(([data, rewardData]) => {
         if (cancelled) return;
         setItems(data);
+        const priceMap: Record<string, number> = {};
+        for (const row of rewardData) priceMap[row.name.toLowerCase()] = row.chaosValue;
+        setRewardPrices(priceMap);
         setVisibleCount(PAGE_SIZE);
       })
       .catch((err: Error) => {
@@ -86,7 +101,7 @@ function OpportunityTableForLeague({
     return () => {
       cancelled = true;
     };
-  }, [league, technique.category]);
+  }, [league, technique.category, technique.rewardConfig?.priceCategory]);
 
   const updateOverride = (id: string, next: OverrideMap[string]) => {
     setOverrides((prev) => {
@@ -110,23 +125,32 @@ function OpportunityTableForLeague({
     saveThreshold(league, technique.slug, value);
   };
 
+  const hasRewardConfig = Boolean(technique.rewardConfig);
+
   const rows = useMemo(() => {
     if (!items) return [];
     const withMargin = items
       .filter((item) => item.name.toLowerCase().includes(search.toLowerCase()))
       .map((item) => {
+        const reward = technique.rewardConfig?.rewards[item.name];
+        const rewardPrice = reward ? rewardPrices[reward.rewardName.toLowerCase()] : undefined;
+        const computedRewardValue =
+          reward && rewardPrice !== undefined ? reward.rewardQuantity * rewardPrice : undefined;
+        const stackSize = reward?.stackSize ?? 1;
+
         const override = overrides[item.id];
         const buy = override?.buy ?? item.chaosValue;
-        const sell = override?.sell ?? item.chaosValue;
-        const margin = sell - buy;
-        const marginPercent = buy > 0 ? (margin / buy) * 100 : 0;
-        return { item, buy, sell, margin, marginPercent };
+        const sell = override?.sell ?? computedRewardValue ?? item.chaosValue;
+        const stackCost = buy * stackSize;
+        const margin = sell - stackCost;
+        const marginPercent = stackCost > 0 ? (margin / stackCost) * 100 : 0;
+        return { item, reward, computedRewardValue, buy, sell, stackCost, margin, marginPercent };
       });
 
     return withMargin.sort((a, b) =>
       sortMode === "value" ? b.item.chaosValue - a.item.chaosValue : b.marginPercent - a.marginPercent,
     );
-  }, [items, overrides, search, sortMode]);
+  }, [items, overrides, search, sortMode, technique.rewardConfig, rewardPrices]);
 
   const visibleRows = rows.slice(0, visibleCount);
   const opportunityCount = rows.filter((r) => r.margin > 0 && r.marginPercent >= threshold).length;
@@ -195,6 +219,7 @@ function OpportunityTableForLeague({
               <tr className="border-b border-[var(--border)] bg-[var(--surface-alt)] text-left text-xs text-[var(--muted)]">
                 <th className="px-3 py-2 font-medium">Item</th>
                 <th className="px-3 py-2 font-medium">Market (chaos)</th>
+                {hasRewardConfig && <th className="px-3 py-2 font-medium">Reward</th>}
                 <th className="px-3 py-2 font-medium">{technique.buyLabel}</th>
                 <th className="px-3 py-2 font-medium">{technique.sellLabel}</th>
                 <th className="px-3 py-2 font-medium">Margin</th>
@@ -202,9 +227,10 @@ function OpportunityTableForLeague({
               </tr>
             </thead>
             <tbody>
-              {visibleRows.map(({ item, buy, sell, margin, marginPercent }) => {
+              {visibleRows.map(({ item, reward, computedRewardValue, buy, sell, stackCost, margin, marginPercent }) => {
                 const isOpportunity = margin > 0 && marginPercent >= threshold;
-                const sliderMax = Math.max(item.chaosValue * 2, 10);
+                const buySliderMax = Math.max(item.chaosValue * 2, 10);
+                const sellSliderMax = Math.max(sell * 2, item.chaosValue * 2, 10);
                 return (
                   <tr
                     key={item.id}
@@ -219,13 +245,32 @@ function OpportunityTableForLeague({
                       )}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">{formatChaos(item.chaosValue)}</td>
+                    {hasRewardConfig && (
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {reward ? (
+                          <>
+                            <div>
+                              {reward.stackSize > 1 ? `${reward.stackSize}x stack -> ` : ""}
+                              {reward.rewardQuantity}x {reward.rewardName}
+                            </div>
+                            <div className="text-xs text-[var(--muted)]">
+                              {computedRewardValue !== undefined
+                                ? `≈ ${formatChaos(computedRewardValue)}c`
+                                : "price unavailable"}
+                            </div>
+                          </>
+                        ) : (
+                          <span className="text-[var(--muted)]">-</span>
+                        )}
+                      </td>
+                    )}
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
                         <input
                           type="range"
                           min={0}
-                          max={sliderMax}
-                          step={sliderMax / 200}
+                          max={buySliderMax}
+                          step={buySliderMax / 200}
                           value={buy}
                           onChange={(e) =>
                             updateOverride(item.id, { buy: Number(e.target.value), sell })
@@ -238,17 +283,22 @@ function OpportunityTableForLeague({
                           onChange={(e) =>
                             updateOverride(item.id, { buy: Number(e.target.value) || 0, sell })
                           }
-                          className="w-16 rounded border border-[var(--border)] bg-[var(--surface-alt)] px-1 py-0.5 text-xs"
+                          className="w-24 rounded border border-[var(--border)] bg-[var(--surface-alt)] px-1 py-0.5 text-xs"
                         />
                       </div>
+                      {reward && reward.stackSize > 1 && (
+                        <div className="mt-1 text-xs text-[var(--muted)]">
+                          Stack cost ({reward.stackSize}x): {formatChaos(stackCost)}c
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
                         <input
                           type="range"
                           min={0}
-                          max={sliderMax}
-                          step={sliderMax / 200}
+                          max={sellSliderMax}
+                          step={sellSliderMax / 200}
                           value={sell}
                           onChange={(e) =>
                             updateOverride(item.id, { buy, sell: Number(e.target.value) })
@@ -261,7 +311,7 @@ function OpportunityTableForLeague({
                           onChange={(e) =>
                             updateOverride(item.id, { buy, sell: Number(e.target.value) || 0 })
                           }
-                          className="w-16 rounded border border-[var(--border)] bg-[var(--surface-alt)] px-1 py-0.5 text-xs"
+                          className="w-24 rounded border border-[var(--border)] bg-[var(--surface-alt)] px-1 py-0.5 text-xs"
                         />
                       </div>
                     </td>
