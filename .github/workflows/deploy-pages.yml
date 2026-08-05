@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - claude/poe-arbitrage-indexer-n3qfsi
   workflow_dispatch:
 
 permissions:
