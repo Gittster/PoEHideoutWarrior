@@ -70,7 +70,7 @@ export const DIVINATION_CARD_REWARDS: Record<string, DivinationCardReward> = {
   "Disdain": { stackSize: 5, rewardQuantity: 1, rewardName: "Delirium Orb", category: "DeliriumOrb" },
   "Divine Beauty": { stackSize: 12, rewardQuantity: 7, rewardName: "Divine Orb", category: "Currency" },
   "Divine Justice": { stackSize: 1, rewardQuantity: 1, rewardName: "Grand Spectrum", category: "UniqueJewel" },
-  "Divine Shard": { stackSize: 3, rewardQuantity: 1, rewardName: "Progenesis", category: "UniqueFlask" },
+  "Divine Shard": { stackSize: 3, rewardQuantity: 1, rewardName: "Divine Vessel", category: "Fragment" },
   "Echoes of Love": { stackSize: 3, rewardQuantity: 1, rewardName: "Fidelitas' Spike", category: "UniqueWeapon" },
   "Emperor's Luck": { stackSize: 5, rewardQuantity: 5, rewardName: "Currency", category: "Currency" },
   "Endless Night": { stackSize: 7, rewardQuantity: 1, rewardName: "Maloney's Mechanism", category: "UniqueAccessory" },
