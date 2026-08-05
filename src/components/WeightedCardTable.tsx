@@ -38,7 +38,8 @@ async function fetchCategory(category: string, league: string): Promise<PoeNinja
 }
 
 interface OutcomeRow extends WeightedCardOutcome {
-  probability: number;
+  timesLogged: number;
+  probability: number | null;
   price: number | undefined;
   ninjaId: string;
   contribution: number | undefined;
@@ -50,27 +51,49 @@ function buildCardRow(
   cardPrice: number,
   buyOverride: number | undefined,
   priceMap: Record<string, { chaosValue: number; ninjaId: string }>,
+  log: CardLogCounts,
 ) {
   const buy = buyOverride ?? cardPrice;
   const stackCost = buy * entry.stackSize;
-  const totalWeight = entry.outcomes.reduce((sum, o) => sum + o.weight, 0);
+  const totalLogged = Object.values(log).reduce((sum, n) => sum + n, 0);
 
   const outcomeRows: OutcomeRow[] = entry.outcomes.map((o) => {
     const priceEntry = priceMap[o.rewardName.toLowerCase()];
     const price = priceEntry?.chaosValue;
-    const probability = totalWeight > 0 ? o.weight / totalWeight : 0;
-    const contribution = price !== undefined ? probability * o.rewardQuantity * price : undefined;
-    return { ...o, probability, price, ninjaId: priceEntry?.ninjaId ?? "", contribution };
+    const timesLogged = log[o.rewardName] ?? 0;
+    // Probability comes entirely from your own logged results - GGG doesn't
+    // publish these odds, so there's nothing to fall back to. Left null
+    // until you've logged at least one result for this card.
+    const probability = totalLogged > 0 ? timesLogged / totalLogged : null;
+    const contribution =
+      probability !== null && price !== undefined ? probability * o.rewardQuantity * price : undefined;
+    return { ...o, timesLogged, probability, price, ninjaId: priceEntry?.ninjaId ?? "", contribution };
   });
 
-  const allKnown = outcomeRows.every((o) => o.contribution !== undefined);
-  const expectedValue = allKnown
-    ? outcomeRows.reduce((sum, o) => sum + (o.contribution ?? 0), 0)
-    : null;
+  // EV only makes sense once you've logged at least one result, and only if
+  // every outcome that's actually appeared in your log has a live price -
+  // an outcome you've never pulled yet just contributes 0 rather than
+  // blocking the whole calculation.
+  const observedOutcomes = outcomeRows.filter((o) => o.timesLogged > 0);
+  const allObservedKnown = observedOutcomes.every((o) => o.contribution !== undefined);
+  const expectedValue =
+    totalLogged > 0 && allObservedKnown
+      ? outcomeRows.reduce((sum, o) => sum + (o.contribution ?? 0), 0)
+      : null;
   const margin = expectedValue === null ? null : expectedValue - stackCost;
   const marginPercent = margin === null ? null : stackCost > 0 ? (margin / stackCost) * 100 : 0;
 
-  return { cardName, entry, buy, stackCost, outcomeRows, expectedValue, margin, marginPercent };
+  return {
+    cardName,
+    entry,
+    buy,
+    stackCost,
+    outcomeRows,
+    totalLogged,
+    expectedValue,
+    margin,
+    marginPercent,
+  };
 }
 
 export function WeightedCardTable({ technique }: { technique: ArbitrageTechnique }) {
@@ -111,7 +134,6 @@ function WeightedCardTableForLeague({
     }
     return initial;
   });
-  const [pendingLogChoice, setPendingLogChoice] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -174,10 +196,8 @@ function WeightedCardTableForLeague({
     });
   };
 
-  const logResult = (cardName: string) => {
-    const choice = pendingLogChoice[cardName];
-    if (!choice) return;
-    const next = recordCardResult(league, technique.slug, cardName, choice);
+  const logResult = (cardName: string, rewardName: string) => {
+    const next = recordCardResult(league, technique.slug, cardName, rewardName);
     setLogsByCard((prev) => ({ ...prev, [cardName]: next }));
   };
 
@@ -195,9 +215,10 @@ function WeightedCardTableForLeague({
           cardPrices[cardName]?.chaosValue ?? 0,
           buyOverrides[cardName],
           outcomePrices,
+          logsByCard[cardName] ?? {},
         ),
       ),
-    [rewards, cardPrices, buyOverrides, outcomePrices],
+    [rewards, cardPrices, buyOverrides, outcomePrices, logsByCard],
   );
 
   if (loading) {
@@ -221,8 +242,6 @@ function WeightedCardTableForLeague({
         const cardPrice = cardPrices[row.cardName]?.chaosValue ?? 0;
         const cardNinjaId = cardPrices[row.cardName]?.ninjaId ?? "";
         const buySliderMax = Math.max(cardPrice * 2, 10);
-        const log = logsByCard[row.cardName] ?? {};
-        const totalLogged = Object.values(log).reduce((a, b) => a + b, 0);
 
         return (
           <div
@@ -290,18 +309,29 @@ function WeightedCardTableForLeague({
                         row.marginPercent !== null && row.marginPercent >= 0 ? "+" : ""
                       }${row.marginPercent?.toFixed(0)}%)`}
                 </div>
+                {row.expectedValue !== null && (
+                  <div className="text-xs text-[var(--muted)]">from {row.totalLogged} logged results</div>
+                )}
               </div>
             </div>
 
+            {row.totalLogged === 0 && (
+              <p className="mt-3 text-xs text-[var(--bad)]">
+                No odds are known for this card yet - log some results below to start computing an
+                expected value.
+              </p>
+            )}
+
             <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[500px] border-collapse text-sm">
+              <table className="w-full min-w-[520px] border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-[var(--border)] text-left text-xs text-[var(--muted)]">
                     <th className="px-2 py-1 font-medium">Possible outcome</th>
-                    <th className="px-2 py-1 font-medium">Weight</th>
-                    <th className="px-2 py-1 font-medium">Probability</th>
+                    <th className="px-2 py-1 font-medium">Times logged</th>
+                    <th className="px-2 py-1 font-medium">Your odds</th>
                     <th className="px-2 py-1 font-medium">Live price</th>
                     <th className="px-2 py-1 font-medium">EV contribution</th>
+                    <th className="px-2 py-1 font-medium"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -326,13 +356,23 @@ function WeightedCardTableForLeague({
                           <span className="text-xs text-[var(--muted)]"> x{o.rewardQuantity}</span>
                         )}
                       </td>
-                      <td className="px-2 py-1">{o.weight}</td>
-                      <td className="px-2 py-1">{(o.probability * 100).toFixed(1)}%</td>
+                      <td className="px-2 py-1">{o.timesLogged}</td>
+                      <td className="px-2 py-1">
+                        {o.probability === null ? "-" : `${(o.probability * 100).toFixed(1)}%`}
+                      </td>
                       <td className="px-2 py-1">
                         {o.price !== undefined ? `${formatChaos(o.price)}c` : "unavailable"}
                       </td>
                       <td className="px-2 py-1">
                         {o.contribution !== undefined ? `${formatChaos(o.contribution)}c` : "-"}
+                      </td>
+                      <td className="px-2 py-1">
+                        <button
+                          onClick={() => logResult(row.cardName, o.rewardName)}
+                          className="rounded-md border border-[var(--border)] px-2 py-1 text-xs hover:border-[var(--accent)] hover:text-[var(--foreground)]"
+                        >
+                          Log this result
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -340,57 +380,16 @@ function WeightedCardTableForLeague({
               </table>
             </div>
 
-            <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-[var(--border)] pt-3">
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-[var(--muted)]">Log a result</label>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={pendingLogChoice[row.cardName] ?? ""}
-                    onChange={(e) =>
-                      setPendingLogChoice((prev) => ({ ...prev, [row.cardName]: e.target.value }))
-                    }
-                    className="rounded-md border border-[var(--border)] bg-[var(--surface-alt)] px-2 py-1 text-sm outline-none focus:border-[var(--accent)]"
-                  >
-                    <option value="">Select what you got...</option>
-                    {row.entry.outcomes.map((o) => (
-                      <option key={o.rewardName} value={o.rewardName}>
-                        {o.rewardName}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={() => logResult(row.cardName)}
-                    disabled={!pendingLogChoice[row.cardName]}
-                    className="rounded-md border border-[var(--border)] px-3 py-1 text-xs hover:border-[var(--accent)] hover:text-[var(--foreground)] disabled:opacity-40"
-                  >
-                    Log
-                  </button>
-                </div>
+            {row.totalLogged > 0 && (
+              <div className="mt-3 flex items-center gap-3 text-xs text-[var(--muted)]">
+                <button
+                  onClick={() => clearLog(row.cardName)}
+                  className="underline hover:text-[var(--foreground)]"
+                >
+                  Reset log ({row.totalLogged} results)
+                </button>
               </div>
-
-              <div className="ml-auto text-xs text-[var(--muted)]">
-                {totalLogged === 0 ? (
-                  "No results logged yet."
-                ) : (
-                  <>
-                    Your results ({totalLogged}):{" "}
-                    {row.entry.outcomes
-                      .map((o) => {
-                        const count = log[o.rewardName] ?? 0;
-                        const pct = totalLogged > 0 ? ((count / totalLogged) * 100).toFixed(0) : "0";
-                        return `${o.rewardName.replace("Divination Scarab of ", "")} ${count} (${pct}%)`;
-                      })
-                      .join(" | ")}{" "}
-                    <button
-                      onClick={() => clearLog(row.cardName)}
-                      className="underline hover:text-[var(--foreground)]"
-                    >
-                      reset
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
+            )}
           </div>
         );
       })}

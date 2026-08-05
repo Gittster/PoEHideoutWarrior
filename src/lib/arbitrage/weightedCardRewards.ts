@@ -1,23 +1,18 @@
 // Divination cards whose payout is a random pick from a small pool of
 // possible rewards, rather than one fixed item - e.g. The Card Sharp always
-// gives ONE Divination Scarab, but which type is picked by weight. These
+// gives ONE Divination Scarab, but which type is picked is randomized. These
 // can't be priced with the single-reward model in divinationCardRewards.ts
-// (there's no single "the" reward), so they get an expected-value model
-// instead: EV = sum over each outcome of (its share of total weight) x
-// (its reward quantity) x (its live price).
-//
-// Weights are relative to each other WITHIN the listed outcome set only - if
-// a card can give some other reward not listed here, the computed EV will be
-// too optimistic (it treats the listed outcomes as the only ones possible).
-// Stack size and weights below are user-supplied, not scraped/verified
-// against a second source - double check before trusting a big trade, and
-// use the results log on the page to sanity-check the weights against what
-// you actually pull.
+// (there's no single "the" reward), and unlike that file, GGG doesn't
+// publish the odds anywhere we can source from - so there's no `weight`
+// field here at all. Instead, WeightedCardTable derives each outcome's
+// probability purely from what you've logged on the page (count for this
+// outcome / total logged for the card), and computes expected value from
+// that. Until you've logged results, EV is left unavailable rather than
+// guessed at.
 export interface WeightedCardOutcome {
   rewardName: string;
   category: string;
   rewardQuantity: number;
-  weight: number;
 }
 
 export interface WeightedCardEntry {
@@ -33,19 +28,16 @@ export const WEIGHTED_CARD_REWARDS: Record<string, WeightedCardEntry> = {
         rewardName: "Divination Scarab of Pilfering",
         category: "Scarab",
         rewardQuantity: 1,
-        weight: 1,
       },
       {
         rewardName: "Divination Scarab of Plenty",
         category: "Scarab",
         rewardQuantity: 1,
-        weight: 5,
       },
       {
         rewardName: "Divination Scarab of The Cloister",
         category: "Scarab",
         rewardQuantity: 1,
-        weight: 5,
       },
     ],
   },

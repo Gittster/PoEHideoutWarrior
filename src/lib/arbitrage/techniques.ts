@@ -96,17 +96,17 @@ export const ARBITRAGE_TECHNIQUES: ArbitrageTechnique[] = [
       "Cards that pay out a random pick from a small pool of rewards, priced by expected value instead of one fixed payout.",
     category: "DivinationCard",
     overview: [
-      "Most divination cards give one fixed reward, but a handful randomize between a small set of possible payouts - The Card Sharp always gives a Divination Scarab, for example, but which type is picked by weight. Those can't be priced with a single reward value, so this page computes an expected value instead: the weighted average of every possible outcome's live price.",
-      "Log what you actually pull from each card here too - it's a good sanity check against the documented weights, since GGG doesn't publish these officially and they occasionally change between leagues.",
+      "Most divination cards give one fixed reward, but a handful randomize between a small set of possible payouts - The Card Sharp always gives a Divination Scarab, for example, but which type you get varies. GGG doesn't publish the odds for these, so this page doesn't guess: log what you actually pull each time you turn in a stack, and it builds up your own odds from that log, then computes an expected value from those odds and each outcome's live price.",
+      "The more results you log, the more the computed odds (and the expected value built from them) should converge on the real thing. With few results logged, treat the number as rough.",
     ],
     mechanics: [
-      "Expected value = sum over each possible outcome of (its share of total weight) x (its reward quantity) x (its live price).",
+      "Expected value = sum over each possible outcome of (your logged share of results for it) x (its reward quantity) x (its live price).",
       "Compare the full-stack cost against the expected value, same as the fixed-reward page.",
       "The single outcome you get on any one stack can be far off the average - this is a long-run edge across many stacks, not a guaranteed profit per stack.",
     ],
     risks: [
-      "Outcome weights are hand-entered from community data, not fetched live or independently verified - double check before trusting a big trade, and watch your own logged results against them.",
-      "A missing or wrong outcome in the pool skews the expected value optimistically (it assumes the listed outcomes are the only ones possible).",
+      "The odds shown are only as good as your own logged sample size - with few results logged, an outcome you haven't pulled yet still shows 0% even though it's possible, which understates the expected value.",
+      "A possible outcome missing from the list entirely would also understate the expected value the same way - if your logged results keep landing on something not in the pool, let me know so it can be added.",
       "Some individual outcomes may have no live price at all, in which case the expected value can't be computed until poe.ninja has data for it.",
     ],
     defaultThresholdPercent: 15,
