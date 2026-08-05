@@ -22,6 +22,12 @@ function formatChaos(value: number): string {
   return value.toFixed(2);
 }
 
+function marginColorClass(margin: number): string {
+  if (margin > 0) return "text-[var(--good)]";
+  if (margin < 0) return "text-[var(--bad)]";
+  return "text-[var(--muted)]";
+}
+
 async function fetchCategory(category: string, league: string): Promise<PoeNinjaItem[]> {
   const res = await fetch(
     `/api/poeninja?category=${encodeURIComponent(category)}&league=${encodeURIComponent(league)}`,
@@ -29,6 +35,27 @@ async function fetchCategory(category: string, league: string): Promise<PoeNinja
   const body = await res.json();
   if (!res.ok) throw new Error(body.error || "Failed to load prices");
   return body.items as PoeNinjaItem[];
+}
+
+function buildRow(
+  item: PoeNinjaItem,
+  overrides: OverrideMap,
+  technique: ArbitrageTechnique,
+  rewardPrices: Record<string, number>,
+) {
+  const reward = technique.rewardConfig?.rewards[item.name];
+  const rewardPrice = reward ? rewardPrices[reward.rewardName.toLowerCase()] : undefined;
+  const computedRewardValue =
+    reward && rewardPrice !== undefined ? reward.rewardQuantity * rewardPrice : undefined;
+  const stackSize = reward?.stackSize ?? 1;
+
+  const override = overrides[item.id];
+  const buy = override?.buy ?? item.chaosValue;
+  const sell = override?.sell ?? computedRewardValue ?? item.chaosValue;
+  const stackCost = buy * stackSize;
+  const margin = sell - stackCost;
+  const marginPercent = stackCost > 0 ? (margin / stackCost) * 100 : 0;
+  return { item, reward, computedRewardValue, buy, sell, stackCost, margin, marginPercent };
 }
 
 export function OpportunityTable({ technique }: { technique: ArbitrageTechnique }) {
@@ -63,7 +90,7 @@ function OpportunityTableForLeague({
     loadThreshold(league, technique.slug, technique.defaultThresholdPercent),
   );
   const [search, setSearch] = useState("");
-  const [sortMode, setSortMode] = useState<"value" | "margin">("value");
+  const [sortMode, setSortMode] = useState<"value" | "marginTotal" | "marginPercent">("value");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   // Fetch live prices on mount (and if the technique's category ever changes).
@@ -127,30 +154,32 @@ function OpportunityTableForLeague({
 
   const hasRewardConfig = Boolean(technique.rewardConfig);
 
-  const rows = useMemo(() => {
+  const filteredItems = useMemo(() => {
     if (!items) return [];
-    const withMargin = items
-      .filter((item) => item.name.toLowerCase().includes(search.toLowerCase()))
-      .map((item) => {
-        const reward = technique.rewardConfig?.rewards[item.name];
-        const rewardPrice = reward ? rewardPrices[reward.rewardName.toLowerCase()] : undefined;
-        const computedRewardValue =
-          reward && rewardPrice !== undefined ? reward.rewardQuantity * rewardPrice : undefined;
-        const stackSize = reward?.stackSize ?? 1;
+    return items.filter((item) => item.name.toLowerCase().includes(search.toLowerCase()));
+  }, [items, search]);
 
-        const override = overrides[item.id];
-        const buy = override?.buy ?? item.chaosValue;
-        const sell = override?.sell ?? computedRewardValue ?? item.chaosValue;
-        const stackCost = buy * stackSize;
-        const margin = sell - stackCost;
-        const marginPercent = stackCost > 0 ? (margin / stackCost) * 100 : 0;
-        return { item, reward, computedRewardValue, buy, sell, stackCost, margin, marginPercent };
-      });
+  // Row order is intentionally NOT recomputed when `overrides` changes: if it
+  // were, dragging a slider on a margin-sorted table would move that row out
+  // from under the pointer mid-drag. Order only refreshes when the item list,
+  // search, sort mode, or prices change; values inside each row (below) still
+  // update live.
+  const orderedItems = useMemo(() => {
+    const sorted = [...filteredItems];
+    sorted.sort((a, b) => {
+      if (sortMode === "value") return b.chaosValue - a.chaosValue;
+      const rowA = buildRow(a, overrides, technique, rewardPrices);
+      const rowB = buildRow(b, overrides, technique, rewardPrices);
+      return sortMode === "marginTotal" ? rowB.margin - rowA.margin : rowB.marginPercent - rowA.marginPercent;
+    });
+    return sorted;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see comment above: overrides is read but must not trigger a resort.
+  }, [filteredItems, sortMode, technique, rewardPrices]);
 
-    return withMargin.sort((a, b) =>
-      sortMode === "value" ? b.item.chaosValue - a.item.chaosValue : b.marginPercent - a.marginPercent,
-    );
-  }, [items, overrides, search, sortMode, technique.rewardConfig, rewardPrices]);
+  const rows = useMemo(
+    () => orderedItems.map((item) => buildRow(item, overrides, technique, rewardPrices)),
+    [orderedItems, overrides, technique, rewardPrices],
+  );
 
   const visibleRows = rows.slice(0, visibleCount);
   const opportunityCount = rows.filter((r) => r.margin > 0 && r.marginPercent >= threshold).length;
@@ -187,11 +216,12 @@ function OpportunityTableForLeague({
           <label className="text-xs text-[var(--muted)]">Sort by</label>
           <select
             value={sortMode}
-            onChange={(e) => setSortMode(e.target.value as "value" | "margin")}
+            onChange={(e) => setSortMode(e.target.value as "value" | "marginTotal" | "marginPercent")}
             className="rounded-md border border-[var(--border)] bg-[var(--surface-alt)] px-2 py-1 text-sm outline-none focus:border-[var(--accent)]"
           >
             <option value="value">Market value</option>
-            <option value="margin">Margin %</option>
+            <option value="marginTotal">Margin (total)</option>
+            <option value="marginPercent">Margin %</option>
           </select>
         </div>
 
@@ -223,6 +253,7 @@ function OpportunityTableForLeague({
                 <th className="px-3 py-2 font-medium">{technique.buyLabel}</th>
                 <th className="px-3 py-2 font-medium">{technique.sellLabel}</th>
                 <th className="px-3 py-2 font-medium">Margin</th>
+                <th className="px-3 py-2 font-medium">Margin %</th>
                 <th className="px-3 py-2 font-medium"></th>
               </tr>
             </thead>
@@ -315,19 +346,13 @@ function OpportunityTableForLeague({
                         />
                       </div>
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <span
-                        className={
-                          margin > 0
-                            ? "text-[var(--good)]"
-                            : margin < 0
-                              ? "text-[var(--bad)]"
-                              : "text-[var(--muted)]"
-                        }
-                      >
-                        {margin >= 0 ? "+" : ""}
-                        {formatChaos(margin)} ({marginPercent.toFixed(0)}%)
-                      </span>
+                    <td className={`px-3 py-2 whitespace-nowrap ${marginColorClass(margin)}`}>
+                      {margin >= 0 ? "+" : ""}
+                      {formatChaos(margin)}
+                    </td>
+                    <td className={`px-3 py-2 whitespace-nowrap ${marginColorClass(margin)}`}>
+                      {margin >= 0 ? "+" : ""}
+                      {marginPercent.toFixed(0)}%
                     </td>
                     <td className="px-3 py-2">
                       <button
