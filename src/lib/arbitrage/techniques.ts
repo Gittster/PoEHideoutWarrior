@@ -75,7 +75,7 @@ export const ARBITRAGE_TECHNIQUES: ArbitrageTechnique[] = [
     ],
     defaultThresholdPercent: 15,
     buyLabel: "Your cost per card (chaos)",
-    sellLabel: "Reward value override (chaos)",
+    sellLabel: "Reward price per unit (chaos)",
     rewardConfig: {
       priceCategory: "Currency",
       rewards: DIVINATION_CARD_REWARDS,

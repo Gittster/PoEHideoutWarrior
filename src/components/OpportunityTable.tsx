@@ -13,6 +13,7 @@ import {
 import type { ArbitrageTechnique } from "@/lib/arbitrage/techniques";
 import type { PoeNinjaItem } from "@/lib/poeninja";
 import { formatChaos } from "@/lib/format";
+import { slugify } from "@/lib/slug";
 import { PriceHistoryModal } from "@/components/PriceHistoryModal";
 
 const PAGE_SIZE = 40;
@@ -36,31 +37,25 @@ function buildRow(
   item: PoeNinjaItem,
   overrides: OverrideMap,
   technique: ArbitrageTechnique,
-  rewardPrices: Record<string, { id: string; chaosValue: number }>,
+  rewardPrices: Record<string, number>,
 ) {
   const reward = technique.rewardConfig?.rewards[item.name];
-  const rewardEntry = reward ? rewardPrices[reward.rewardName.toLowerCase()] : undefined;
-  const computedRewardValue =
-    reward && rewardEntry !== undefined ? reward.rewardQuantity * rewardEntry.chaosValue : undefined;
+  // rewardPrice/sell are both PER UNIT of the reward item (mirrors `buy`
+  // being per card, not per stack) - reward.rewardQuantity scales it up to
+  // the full-stack payout, same as stackSize scales `buy` up to stack cost.
+  const rewardPrice = reward ? rewardPrices[reward.rewardName.toLowerCase()] : undefined;
+  const quantity = reward?.rewardQuantity ?? 1;
+  const computedRewardValue = rewardPrice !== undefined ? rewardPrice * quantity : undefined;
   const stackSize = reward?.stackSize ?? 1;
 
   const override = overrides[item.id];
   const buy = override?.buy ?? item.chaosValue;
-  const sell = override?.sell ?? computedRewardValue ?? item.chaosValue;
+  const sell = override?.sell ?? rewardPrice ?? item.chaosValue;
   const stackCost = buy * stackSize;
-  const margin = sell - stackCost;
+  const rewardTotal = sell * quantity;
+  const margin = rewardTotal - stackCost;
   const marginPercent = stackCost > 0 ? (margin / stackCost) * 100 : 0;
-  return {
-    item,
-    reward,
-    rewardItemId: rewardEntry?.id,
-    computedRewardValue,
-    buy,
-    sell,
-    stackCost,
-    margin,
-    marginPercent,
-  };
+  return { item, reward, computedRewardValue, buy, sell, stackCost, rewardTotal, margin, marginPercent };
 }
 
 export function OpportunityTable({ technique }: { technique: ArbitrageTechnique }) {
@@ -81,9 +76,7 @@ function OpportunityTableForLeague({
   const [items, setItems] = useState<PoeNinjaItem[] | null>(null);
   // Reward-item prices (e.g. Currency), only fetched when the technique has
   // a rewardConfig. Keyed by lowercased item name.
-  const [rewardPrices, setRewardPrices] = useState<Record<string, { id: string; chaosValue: number }>>(
-    {},
-  );
+  const [rewardPrices, setRewardPrices] = useState<Record<string, number>>({});
   // The item currently shown in the price-history popup, or null if closed.
   const [historyTarget, setHistoryTarget] = useState<{
     category: string;
@@ -127,10 +120,8 @@ function OpportunityTableForLeague({
       .then(([data, rewardData]) => {
         if (cancelled) return;
         setItems(data);
-        const priceMap: Record<string, { id: string; chaosValue: number }> = {};
-        for (const row of rewardData) {
-          priceMap[row.name.toLowerCase()] = { id: row.id, chaosValue: row.chaosValue };
-        }
+        const priceMap: Record<string, number> = {};
+        for (const row of rewardData) priceMap[row.name.toLowerCase()] = row.chaosValue;
         setRewardPrices(priceMap);
         setVisibleCount(PAGE_SIZE);
       })
@@ -275,10 +266,13 @@ function OpportunityTableForLeague({
               </tr>
             </thead>
             <tbody>
-              {visibleRows.map(({ item, reward, rewardItemId, computedRewardValue, buy, sell, stackCost, margin, marginPercent }) => {
+              {visibleRows.map(({ item, reward, computedRewardValue, buy, sell, stackCost, rewardTotal, margin, marginPercent }) => {
                 const isOpportunity = margin > 0 && marginPercent >= threshold;
                 const buySliderMax = Math.max(item.chaosValue * 2, 10);
-                const sellSliderMax = Math.max(sell * 2, item.chaosValue * 2, 10);
+                // Based on `sell` alone (not item.chaosValue) - sell is now a
+                // per-unit reward price, which can be a very different scale
+                // than the card's own price (e.g. 0.05c lifeforce vs a 22c card).
+                const sellSliderMax = Math.max(sell * 2, 10);
                 return (
                   <tr
                     key={item.id}
@@ -291,7 +285,7 @@ function OpportunityTableForLeague({
                         onClick={() =>
                           setHistoryTarget({
                             category: technique.category,
-                            itemId: item.id,
+                            itemId: slugify(item.name),
                             itemName: item.name,
                           })
                         }
@@ -312,23 +306,19 @@ function OpportunityTableForLeague({
                             <div>
                               {reward.stackSize > 1 ? `${reward.stackSize}x stack -> ` : ""}
                               {reward.rewardQuantity}x{" "}
-                              {rewardItemId && technique.rewardConfig ? (
-                                <button
-                                  onClick={() =>
-                                    setHistoryTarget({
-                                      category: technique.rewardConfig!.priceCategory,
-                                      itemId: rewardItemId,
-                                      itemName: reward.rewardName,
-                                    })
-                                  }
-                                  className="underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
-                                  title="View price history"
-                                >
-                                  {reward.rewardName}
-                                </button>
-                              ) : (
-                                reward.rewardName
-                              )}
+                              <button
+                                onClick={() =>
+                                  setHistoryTarget({
+                                    category: technique.rewardConfig!.priceCategory,
+                                    itemId: slugify(reward.rewardName),
+                                    itemName: reward.rewardName,
+                                  })
+                                }
+                                className="underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
+                                title="View price history"
+                              >
+                                {reward.rewardName}
+                              </button>
                             </div>
                             <div className="text-xs text-[var(--muted)]">
                               {computedRewardValue !== undefined
@@ -391,6 +381,11 @@ function OpportunityTableForLeague({
                           className="w-24 rounded border border-[var(--border)] bg-[var(--surface-alt)] px-1 py-0.5 text-xs"
                         />
                       </div>
+                      {reward && reward.rewardQuantity > 1 && (
+                        <div className="mt-1 text-xs text-[var(--muted)]">
+                          Reward total ({reward.rewardQuantity}x): {formatChaos(rewardTotal)}c
+                        </div>
+                      )}
                     </td>
                     <td className={`px-3 py-2 whitespace-nowrap ${marginColorClass(margin)}`}>
                       {margin >= 0 ? "+" : ""}
