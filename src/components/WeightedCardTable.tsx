@@ -13,6 +13,7 @@ import {
   type CardLogCounts,
 } from "@/lib/arbitrage/weightedCardData";
 import type { ArbitrageTechnique } from "@/lib/arbitrage/techniques";
+import { getCurrencyGoldCost, getDivinationCardGoldCost } from "@/lib/arbitrage/goldCosts";
 import type { WeightedCardEntry, WeightedCardOutcome } from "@/lib/arbitrage/weightedCardRewards";
 import type { PoeNinjaItem } from "@/lib/poeninja";
 import { formatChaos } from "@/lib/format";
@@ -20,6 +21,12 @@ import { slugify } from "@/lib/slug";
 import { PriceHistoryModal } from "@/components/PriceHistoryModal";
 
 const EMPTY_REWARDS: Record<string, WeightedCardEntry> = {};
+
+function goldCostLookupFor(technique: ArbitrageTechnique): ((itemName: string) => number | undefined) | undefined {
+  if (technique.goldCostSource === "currency") return getCurrencyGoldCost;
+  if (technique.goldCostSource === "divinationCard") return getDivinationCardGoldCost;
+  return undefined;
+}
 
 function marginColorClass(margin: number | null): string {
   if (margin === null) return "text-[var(--muted)]";
@@ -52,6 +59,7 @@ function buildCardRow(
   buyOverride: number | undefined,
   priceMap: Record<string, { chaosValue: number; ninjaId: string }>,
   log: CardLogCounts,
+  goldCostLookup: ((itemName: string) => number | undefined) | undefined,
 ) {
   const buy = buyOverride ?? cardPrice;
   const stackCost = buy * entry.stackSize;
@@ -83,6 +91,11 @@ function buildCardRow(
   const margin = expectedValue === null ? null : expectedValue - stackCost;
   const marginPercent = margin === null ? null : stackCost > 0 ? (margin / stackCost) * 100 : 0;
 
+  const goldCostPerUnit = goldCostLookup?.(cardName);
+  const goldCost = goldCostPerUnit !== undefined ? goldCostPerUnit * entry.stackSize : undefined;
+  const goldPerChaos =
+    goldCost !== undefined && margin !== null && margin > 0 ? goldCost / margin : null;
+
   return {
     cardName,
     entry,
@@ -93,6 +106,8 @@ function buildCardRow(
     expectedValue,
     margin,
     marginPercent,
+    goldCost,
+    goldPerChaos,
   };
 }
 
@@ -216,9 +231,10 @@ function WeightedCardTableForLeague({
           buyOverrides[cardName],
           outcomePrices,
           logsByCard[cardName] ?? {},
+          goldCostLookupFor(technique),
         ),
       ),
-    [rewards, cardPrices, buyOverrides, outcomePrices, logsByCard],
+    [rewards, cardPrices, buyOverrides, outcomePrices, logsByCard, technique],
   );
 
   if (loading) {
@@ -294,6 +310,7 @@ function WeightedCardTableForLeague({
                 </div>
                 <div className="text-xs text-[var(--muted)]">
                   Stack cost ({row.entry.stackSize}x): {formatChaos(row.stackCost)}c
+                  {row.goldCost !== undefined && ` + ${row.goldCost.toLocaleString()} gold`}
                 </div>
               </div>
 
@@ -311,6 +328,9 @@ function WeightedCardTableForLeague({
                 </div>
                 {row.expectedValue !== null && (
                   <div className="text-xs text-[var(--muted)]">from {row.totalLogged} logged results</div>
+                )}
+                {row.goldPerChaos !== null && (
+                  <div className="text-xs text-[var(--muted)]">{row.goldPerChaos.toFixed(1)} gold/chaos earned</div>
                 )}
               </div>
             </div>

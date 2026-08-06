@@ -11,12 +11,19 @@ import {
   type OverrideMap,
 } from "@/lib/arbitrage/overrides";
 import type { ArbitrageTechnique } from "@/lib/arbitrage/techniques";
+import { getCurrencyGoldCost, getDivinationCardGoldCost } from "@/lib/arbitrage/goldCosts";
 import type { PoeNinjaItem } from "@/lib/poeninja";
 import { formatChaos } from "@/lib/format";
 import { slugify } from "@/lib/slug";
 import { PriceHistoryModal } from "@/components/PriceHistoryModal";
 
 const PAGE_SIZE = 40;
+
+function goldCostLookupFor(technique: ArbitrageTechnique): ((itemName: string) => number | undefined) | undefined {
+  if (technique.goldCostSource === "currency") return getCurrencyGoldCost;
+  if (technique.goldCostSource === "divinationCard") return getDivinationCardGoldCost;
+  return undefined;
+}
 
 function marginColorClass(margin: number | null): string {
   if (margin === null) return "text-[var(--muted)]";
@@ -64,6 +71,17 @@ function buildRow(
   const rewardTotal = sell * quantity;
   const margin = priceUnknown ? null : rewardTotal - stackCost;
   const marginPercent = margin === null ? null : stackCost > 0 ? (margin / stackCost) * 100 : 0;
+
+  // Gold cost is per single unit of the row's own item (the thing you buy),
+  // scaled by stackSize the same way its chaos cost is - buying a full stack
+  // of cards through the exchange costs stackSize x the per-card gold fee.
+  const goldCostPerUnit = goldCostLookupFor(technique)?.(item.name);
+  const goldCost = goldCostPerUnit !== undefined ? goldCostPerUnit * stackSize : undefined;
+  // Only meaningful with a real profit to divide into - a loss or break-even
+  // trade doesn't have a "gold per chaos earned" figure.
+  const goldPerChaos =
+    goldCost !== undefined && margin !== null && margin > 0 ? goldCost / margin : null;
+
   return {
     item,
     reward,
@@ -76,6 +94,8 @@ function buildRow(
     rewardTotal,
     margin,
     marginPercent,
+    goldCost,
+    goldPerChaos,
   };
 }
 
@@ -195,6 +215,7 @@ function OpportunityTableForLeague({
   };
 
   const hasRewardConfig = Boolean(technique.rewardConfig);
+  const hasGoldCost = Boolean(technique.goldCostSource);
 
   const filteredItems = useMemo(() => {
     if (!items) return [];
@@ -322,11 +343,13 @@ function OpportunityTableForLeague({
                 <th className="px-3 py-2 font-medium">{technique.sellLabel}</th>
                 <th className="px-3 py-2 font-medium">Margin</th>
                 <th className="px-3 py-2 font-medium">Margin %</th>
+                {hasGoldCost && <th className="px-3 py-2 font-medium">Gold cost</th>}
+                {hasGoldCost && <th className="px-3 py-2 font-medium">Gold/chaos earned</th>}
                 <th className="px-3 py-2 font-medium"></th>
               </tr>
             </thead>
             <tbody>
-              {visibleRows.map(({ item, reward, rewardNinjaId, computedRewardValue, priceUnknown, buy, sell, stackCost, rewardTotal, margin, marginPercent }) => {
+              {visibleRows.map(({ item, reward, rewardNinjaId, computedRewardValue, priceUnknown, buy, sell, stackCost, rewardTotal, margin, marginPercent, goldCost, goldPerChaos }) => {
                 const isOpportunity = margin !== null && margin > 0 && marginPercent !== null && marginPercent >= threshold;
                 const buySliderMax = Math.max(item.chaosValue * 2, 10);
                 // Based on `sell` alone (not item.chaosValue) - sell is now a
@@ -460,6 +483,16 @@ function OpportunityTableForLeague({
                     <td className={`px-3 py-2 whitespace-nowrap ${marginColorClass(margin)}`}>
                       {marginPercent === null ? "-" : `${marginPercent >= 0 ? "+" : ""}${marginPercent.toFixed(0)}%`}
                     </td>
+                    {hasGoldCost && (
+                      <td className="px-3 py-2 whitespace-nowrap text-[var(--muted)]">
+                        {goldCost === undefined ? "unknown" : goldCost.toLocaleString()}
+                      </td>
+                    )}
+                    {hasGoldCost && (
+                      <td className="px-3 py-2 whitespace-nowrap text-[var(--muted)]">
+                        {goldPerChaos === null ? "-" : goldPerChaos.toFixed(1)}
+                      </td>
+                    )}
                     <td className="px-3 py-2">
                       <button
                         onClick={() => resetOverride(item.id)}

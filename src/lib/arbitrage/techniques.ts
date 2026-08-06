@@ -36,6 +36,16 @@ export interface ArbitrageTechnique {
   weightedRewardConfig?: {
     rewards: Record<string, WeightedCardEntry>;
   };
+  /**
+   * Optional: which gold-cost table (see goldCosts.ts) to look up the row's
+   * own item in, for buying one unit through the in-game Currency Exchange.
+   * A string tag rather than a function reference since techniques are
+   * plain data passed from a server component into client ones. When set,
+   * tables also show a "gold per chaos earned" figure alongside the chaos
+   * margin - an item missing from the table means its gold cost isn't
+   * mapped yet, not that it's free.
+   */
+  goldCostSource?: "currency" | "divinationCard";
 }
 
 export const ARBITRAGE_TECHNIQUES: ArbitrageTechnique[] = [
@@ -61,6 +71,7 @@ export const ARBITRAGE_TECHNIQUES: ArbitrageTechnique[] = [
     defaultThresholdPercent: 8,
     buyLabel: "Your buy price (chaos)",
     sellLabel: "Your sell price (chaos)",
+    goldCostSource: "currency",
   },
   {
     slug: "divination-card-flipping",
@@ -88,6 +99,7 @@ export const ARBITRAGE_TECHNIQUES: ArbitrageTechnique[] = [
     rewardConfig: {
       rewards: DIVINATION_CARD_REWARDS,
     },
+    goldCostSource: "divinationCard",
   },
   {
     slug: "variable-reward-cards",
@@ -115,6 +127,7 @@ export const ARBITRAGE_TECHNIQUES: ArbitrageTechnique[] = [
     weightedRewardConfig: {
       rewards: WEIGHTED_CARD_REWARDS,
     },
+    goldCostSource: "divinationCard",
   },
   {
     slug: "essence-flipping",
