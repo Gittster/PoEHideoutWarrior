@@ -6,11 +6,6 @@ import { useLeague } from "@/lib/league-context";
 import { DIVINATION_CARD_REWARDS } from "@/lib/arbitrage/divinationCardRewards";
 import { WEIGHTED_CARD_REWARDS } from "@/lib/arbitrage/weightedCardRewards";
 import { DIVINATION_CARD_GOLD_COSTS } from "@/lib/arbitrage/goldCosts";
-import {
-  loadGoldCostOverrides,
-  saveGoldCostOverrides,
-  type GoldCostOverrideMap,
-} from "@/lib/arbitrage/goldCostOverrides";
 import type { PoeNinjaItem } from "@/lib/poeninja";
 import { formatChaos } from "@/lib/format";
 import { slugify } from "@/lib/slug";
@@ -55,9 +50,6 @@ function DivinationCardReferenceTableForLeague({ league }: { league: string }) {
   const [missingRewardOnly, setMissingRewardOnly] = useState(false);
   const [missingGoldOnly, setMissingGoldOnly] = useState(false);
   const [sortMode, setSortMode] = useState<"name" | "value">("name");
-  const [goldOverrides, setGoldOverrides] = useState<GoldCostOverrideMap>(() =>
-    loadGoldCostOverrides(),
-  );
   const [historyTarget, setHistoryTarget] = useState<{
     category: string;
     itemId: string;
@@ -86,33 +78,14 @@ function DivinationCardReferenceTableForLeague({ league }: { league: string }) {
     };
   }, [league]);
 
-  const updateGoldOverride = (cardName: string, value: number) => {
-    setGoldOverrides((prev) => {
-      const merged = { ...prev, [cardName]: value };
-      saveGoldCostOverrides(merged);
-      return merged;
-    });
-  };
-
-  const resetGoldOverride = (cardName: string) => {
-    setGoldOverrides((prev) => {
-      const merged = { ...prev };
-      delete merged[cardName];
-      saveGoldCostOverrides(merged);
-      return merged;
-    });
-  };
-
   const rows = useMemo(() => {
     if (!items) return [];
     const term = search.trim().toLowerCase();
     const withRewards = items.map((item) => {
       const reward = rewardDisplay(item.name);
       const stackSize = stackSizeFor(item.name);
-      const goldCostBase = DIVINATION_CARD_GOLD_COSTS[item.name];
-      const goldOverride = goldOverrides[item.name];
-      const goldCost = goldOverride ?? goldCostBase;
-      return { item, reward, stackSize, goldCost, hasGoldOverride: goldOverride !== undefined };
+      const goldCost = DIVINATION_CARD_GOLD_COSTS[item.name];
+      return { item, reward, stackSize, goldCost };
     });
 
     const filtered = withRewards.filter((row) => {
@@ -130,12 +103,10 @@ function DivinationCardReferenceTableForLeague({ league }: { league: string }) {
     });
 
     return filtered;
-  }, [items, search, missingRewardOnly, missingGoldOnly, sortMode, goldOverrides]);
+  }, [items, search, missingRewardOnly, missingGoldOnly, sortMode]);
 
   const mappedRewardCount = items?.filter((i) => rewardDisplay(i.name).mapped).length ?? 0;
-  const mappedGoldCount =
-    items?.filter((i) => DIVINATION_CARD_GOLD_COSTS[i.name] !== undefined || goldOverrides[i.name] !== undefined)
-      .length ?? 0;
+  const mappedGoldCount = items?.filter((i) => DIVINATION_CARD_GOLD_COSTS[i.name] !== undefined).length ?? 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -202,7 +173,7 @@ function DivinationCardReferenceTableForLeague({ league }: { league: string }) {
 
       {!loading && !error && rows.length > 0 && (
         <div className="scroll-x-visible overflow-x-auto rounded-lg border border-[var(--border)]">
-          <table className="w-full min-w-[760px] border-collapse text-sm">
+          <table className="w-full min-w-[720px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-[var(--border)] bg-[var(--surface-alt)] text-left text-xs text-[var(--muted)]">
                 <th className="px-3 py-2 font-medium">Card</th>
@@ -213,7 +184,7 @@ function DivinationCardReferenceTableForLeague({ league }: { league: string }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ item, reward, stackSize, goldCost, hasGoldOverride }) => (
+              {rows.map(({ item, reward, stackSize, goldCost }) => (
                 <tr key={item.id} className="border-b border-[var(--border)] last:border-0">
                   <td className="px-3 py-2">
                     <button
@@ -236,33 +207,8 @@ function DivinationCardReferenceTableForLeague({ league }: { league: string }) {
                     {reward.text}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">{formatChaos(item.chaosValue)}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min={0}
-                        step={1}
-                        value={goldCost ?? ""}
-                        placeholder="unknown"
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (value === "") {
-                            resetGoldOverride(item.name);
-                          } else {
-                            updateGoldOverride(item.name, Number(value) || 0);
-                          }
-                        }}
-                        className="w-24 rounded border border-[var(--border)] bg-[var(--surface-alt)] px-1 py-0.5 text-xs"
-                      />
-                      {hasGoldOverride && (
-                        <button
-                          onClick={() => resetGoldOverride(item.name)}
-                          className="text-xs text-[var(--muted)] underline hover:text-[var(--foreground)]"
-                        >
-                          reset
-                        </button>
-                      )}
-                    </div>
+                  <td className="px-3 py-2 whitespace-nowrap text-[var(--muted)]">
+                    {goldCost === undefined ? "unknown" : goldCost.toLocaleString()}
                   </td>
                 </tr>
               ))}

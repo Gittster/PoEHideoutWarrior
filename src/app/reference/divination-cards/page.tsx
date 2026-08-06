@@ -7,8 +7,8 @@ export default function DivinationCardReferencePage() {
         <h1 className="text-2xl font-semibold tracking-tight">Divination Card Reference</h1>
         <p className="mt-1 text-sm text-[var(--muted)]">
           Every card poe.ninja currently prices, with its known reward, stack size, live cost per
-          card, and gold cost. Gold cost is missing for most cards - fill in values you&apos;ve
-          confirmed in-game and they&apos;re saved to this browser for next time.
+          card, and gold cost. Gold cost is missing for most cards - values live in
+          src/lib/arbitrage/goldCosts.ts and get added there directly as they&apos;re confirmed.
         </p>
       </div>
       <DivinationCardReferenceTable />
