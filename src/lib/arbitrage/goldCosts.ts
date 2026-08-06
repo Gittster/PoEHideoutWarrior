@@ -69,6 +69,7 @@ export function getCurrencyGoldCost(itemName: string): number | undefined {
 // divinationCardRewards.ts.
 export const DIVINATION_CARD_GOLD_COSTS: Record<string, number> = {
   "The Card Sharp": 275,
+  "The Hoarder": 150,
 };
 
 export function getDivinationCardGoldCost(cardName: string): number | undefined {
