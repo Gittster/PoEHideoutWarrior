@@ -19,6 +19,9 @@ export function Nav() {
           <Link href="/arbitrage" className="hover:text-[var(--foreground)]">
             Arbitrage
           </Link>
+          <Link href="/reference/divination-cards" className="hover:text-[var(--foreground)]">
+            Card Reference
+          </Link>
           <Link
             href="/config"
             className="rounded-full border border-[var(--border)] bg-[var(--surface-alt)] px-3 py-1 hover:border-[var(--accent)] hover:text-[var(--foreground)]"
