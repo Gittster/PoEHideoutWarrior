@@ -6,11 +6,15 @@ import { useLeague } from "@/lib/league-context";
 import { DIVINATION_CARD_REWARDS } from "@/lib/arbitrage/divinationCardRewards";
 import { WEIGHTED_CARD_REWARDS } from "@/lib/arbitrage/weightedCardRewards";
 import { DIVINATION_CARD_GOLD_COSTS } from "@/lib/arbitrage/goldCosts";
+import { techniqueSlugForCard } from "@/lib/arbitrage/cardTechnique";
 import type { PoeNinjaItem } from "@/lib/poeninja";
 import { formatChaos } from "@/lib/format";
 import { slugify } from "@/lib/slug";
 import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
+import { useFavorites } from "@/lib/useFavorites";
+import { downloadCsv } from "@/lib/csv";
 import { PriceHistoryModal } from "@/components/PriceHistoryModal";
+import { FavoriteButton } from "@/components/FavoriteButton";
 
 async function fetchDivinationCards(league: string): Promise<PoeNinjaItem[]> {
   const res = await fetch(
@@ -52,6 +56,7 @@ function DivinationCardReferenceTableForLeague({ league }: { league: string }) {
   const [missingGoldOnly, setMissingGoldOnly] = useState(false);
   const [sortMode, setSortMode] = useState<"name" | "value">("name");
   const { copiedKey, copy } = useCopyToClipboard();
+  const { toggle: toggleFavorite, isFavorite } = useFavorites();
   const [historyTarget, setHistoryTarget] = useState<{
     category: string;
     itemId: string;
@@ -110,6 +115,29 @@ function DivinationCardReferenceTableForLeague({ league }: { league: string }) {
   const mappedRewardCount = items?.filter((i) => rewardDisplay(i.name).mapped).length ?? 0;
   const mappedGoldCount = items?.filter((i) => DIVINATION_CARD_GOLD_COSTS[i.name] !== undefined).length ?? 0;
 
+  // Exports the full live card list (not just the filtered/visible rows) so
+  // it's a complete worksheet to fill in gold costs against offline, then
+  // hand back to update goldCosts.ts with.
+  const exportCsv = () => {
+    if (!items) return;
+    const header = ["Card Name", "Stack Size", "Reward", "Cost per Card (chaos)", "Gold Cost"];
+    const dataRows = items
+      .map((item) => {
+        const reward = rewardDisplay(item.name);
+        const stackSize = stackSizeFor(item.name);
+        const goldCost = DIVINATION_CARD_GOLD_COSTS[item.name];
+        return [
+          item.name,
+          stackSize ?? "",
+          reward.text,
+          item.chaosValue,
+          goldCost ?? "",
+        ];
+      })
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+    downloadCsv(`divination-card-gold-costs-${league}.csv`, [header, ...dataRows]);
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end gap-6 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
@@ -154,11 +182,19 @@ function DivinationCardReferenceTableForLeague({ league }: { league: string }) {
         </label>
 
         {items && (
-          <div className="ml-auto text-sm text-[var(--muted)]">
-            <span className="font-medium text-[var(--foreground)]">{mappedRewardCount}</span>/
-            {items.length} rewards mapped, <span className="font-medium text-[var(--foreground)]">{mappedGoldCount}</span>/
-            {items.length} gold costs known
-          </div>
+          <>
+            <button
+              onClick={exportCsv}
+              className="rounded-md border border-[var(--border)] px-3 py-1.5 text-sm hover:border-[var(--accent)] hover:text-[var(--foreground)]"
+            >
+              Export CSV
+            </button>
+            <div className="ml-auto text-sm text-[var(--muted)]">
+              <span className="font-medium text-[var(--foreground)]">{mappedRewardCount}</span>/
+              {items.length} rewards mapped, <span className="font-medium text-[var(--foreground)]">{mappedGoldCount}</span>/
+              {items.length} gold costs known
+            </div>
+          </>
         )}
       </div>
 
@@ -189,6 +225,15 @@ function DivinationCardReferenceTableForLeague({ league }: { league: string }) {
               {rows.map(({ item, reward, stackSize, goldCost }) => (
                 <tr key={item.id} className="border-b border-[var(--border)] last:border-0">
                   <td className="px-3 py-2">
+                    <FavoriteButton
+                      active={isFavorite(techniqueSlugForCard(item.name), item.name)}
+                      onClick={() =>
+                        toggleFavorite({
+                          techniqueSlug: techniqueSlugForCard(item.name),
+                          itemName: item.name,
+                        })
+                      }
+                    />{" "}
                     <button
                       onClick={() => {
                         copy(item.id, item.name);

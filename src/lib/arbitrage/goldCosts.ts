@@ -80,3 +80,15 @@ export const DIVINATION_CARD_GOLD_COSTS: Record<string, number> = {
 export function getDivinationCardGoldCost(cardName: string): number | undefined {
   return DIVINATION_CARD_GOLD_COSTS[cardName];
 }
+
+// Resolves a technique's goldCostSource tag (see techniques.ts) to the
+// actual lookup function. Takes the tag rather than the technique object so
+// this can live in the same module as the cost tables without techniques.ts
+// and goldCosts.ts importing each other.
+export function goldCostLookupFor(
+  goldCostSource: "currency" | "divinationCard" | undefined,
+): ((itemName: string) => number | undefined) | undefined {
+  if (goldCostSource === "currency") return getCurrencyGoldCost;
+  if (goldCostSource === "divinationCard") return getDivinationCardGoldCost;
+  return undefined;
+}

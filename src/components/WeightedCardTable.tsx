@@ -13,36 +13,23 @@ import {
   type CardLogCounts,
 } from "@/lib/arbitrage/weightedCardData";
 import type { ArbitrageTechnique } from "@/lib/arbitrage/techniques";
-import { getCurrencyGoldCost, getDivinationCardGoldCost } from "@/lib/arbitrage/goldCosts";
+import { goldCostLookupFor } from "@/lib/arbitrage/goldCosts";
 import type { WeightedCardEntry, WeightedCardOutcome } from "@/lib/arbitrage/weightedCardRewards";
-import type { PoeNinjaItem } from "@/lib/poeninja";
 import { formatChaos } from "@/lib/format";
 import { slugify } from "@/lib/slug";
+import { fetchCategory } from "@/lib/fetchCategory";
 import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
+import { useFavorites } from "@/lib/useFavorites";
 import { PriceHistoryModal } from "@/components/PriceHistoryModal";
+import { FavoriteButton } from "@/components/FavoriteButton";
 
 const EMPTY_REWARDS: Record<string, WeightedCardEntry> = {};
-
-function goldCostLookupFor(technique: ArbitrageTechnique): ((itemName: string) => number | undefined) | undefined {
-  if (technique.goldCostSource === "currency") return getCurrencyGoldCost;
-  if (technique.goldCostSource === "divinationCard") return getDivinationCardGoldCost;
-  return undefined;
-}
 
 function marginColorClass(margin: number | null): string {
   if (margin === null) return "text-[var(--muted)]";
   if (margin > 0) return "text-[var(--good)]";
   if (margin < 0) return "text-[var(--bad)]";
   return "text-[var(--muted)]";
-}
-
-async function fetchCategory(category: string, league: string): Promise<PoeNinjaItem[]> {
-  const res = await fetch(
-    `/api/poeninja?category=${encodeURIComponent(category)}&league=${encodeURIComponent(league)}`,
-  );
-  const body = await res.json();
-  if (!res.ok) throw new Error(body.error || "Failed to load prices");
-  return body.items as PoeNinjaItem[];
 }
 
 interface OutcomeRow extends WeightedCardOutcome {
@@ -53,7 +40,7 @@ interface OutcomeRow extends WeightedCardOutcome {
   contribution: number | undefined;
 }
 
-function buildCardRow(
+export function buildCardRow(
   cardName: string,
   entry: { stackSize: number; outcomes: WeightedCardOutcome[] },
   cardPrice: number,
@@ -140,6 +127,7 @@ function WeightedCardTableForLeague({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const { copiedKey, copy } = useCopyToClipboard();
+  const { toggle: toggleFavorite, isFavorite } = useFavorites();
 
   const [buyOverrides, setBuyOverrides] = useState<BuyOverrideMap>(() =>
     loadBuyOverrides(league, technique.slug),
@@ -233,7 +221,7 @@ function WeightedCardTableForLeague({
           buyOverrides[cardName],
           outcomePrices,
           logsByCard[cardName] ?? {},
-          goldCostLookupFor(technique),
+          goldCostLookupFor(technique.goldCostSource),
         ),
       ),
     [rewards, cardPrices, buyOverrides, outcomePrices, logsByCard, technique],
@@ -268,6 +256,10 @@ function WeightedCardTableForLeague({
           >
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
+                <FavoriteButton
+                  active={isFavorite(technique.slug, row.cardName)}
+                  onClick={() => toggleFavorite({ techniqueSlug: technique.slug, itemName: row.cardName })}
+                />{" "}
                 <button
                   onClick={() => {
                     copy(`card-${row.cardName}`, row.cardName);

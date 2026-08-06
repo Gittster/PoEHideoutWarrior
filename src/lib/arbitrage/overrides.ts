@@ -19,6 +19,10 @@ function thresholdKey(league: string, slug: string) {
   return `phw:threshold:${league}:${slug}`;
 }
 
+function minValueKey(league: string, slug: string) {
+  return `phw:minvalue:${league}:${slug}`;
+}
+
 export function loadOverrides(league: string, slug: string): OverrideMap {
   return readLocalStorage(overridesKey(league, slug), {} as OverrideMap);
 }
@@ -33,4 +37,12 @@ export function loadThreshold(league: string, slug: string, fallback: number): n
 
 export function saveThreshold(league: string, slug: string, value: number): void {
   writeLocalStorage(thresholdKey(league, slug), value);
+}
+
+export function loadMinValue(league: string, slug: string): number {
+  return readLocalStorage(minValueKey(league, slug), 0);
+}
+
+export function saveMinValue(league: string, slug: string, value: number): void {
+  writeLocalStorage(minValueKey(league, slug), value);
 }
