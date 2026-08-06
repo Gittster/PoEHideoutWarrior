@@ -15,6 +15,7 @@ import { getCurrencyGoldCost, getDivinationCardGoldCost } from "@/lib/arbitrage/
 import type { PoeNinjaItem } from "@/lib/poeninja";
 import { formatChaos } from "@/lib/format";
 import { slugify } from "@/lib/slug";
+import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
 import { PriceHistoryModal } from "@/components/PriceHistoryModal";
 
 const PAGE_SIZE = 40;
@@ -129,6 +130,7 @@ function OpportunityTableForLeague({
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const { copiedKey, copy } = useCopyToClipboard();
 
   // The parent page mounts this component with key={league}, so these lazy
   // initializers re-run fresh on every league switch instead of needing an
@@ -365,19 +367,23 @@ function OpportunityTableForLeague({
                   >
                     <td className="px-3 py-2">
                       <button
-                        onClick={() =>
+                        onClick={() => {
+                          copy(`item-${item.id}`, item.name);
                           setHistoryTarget({
                             category: technique.category,
                             itemId: slugify(item.name),
                             itemName: item.name,
                             rawId: item.ninjaId,
-                          })
-                        }
+                          });
+                        }}
                         className="font-medium underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
-                        title="View price history"
+                        title="Click to copy name, view price history"
                       >
                         {item.name}
                       </button>
+                      {copiedKey === `item-${item.id}` && (
+                        <span className="ml-1 text-xs text-[var(--good)]">Copied!</span>
+                      )}
                       {item.variant && (
                         <div className="text-xs text-[var(--muted)]">{item.variant}</div>
                       )}
@@ -391,19 +397,23 @@ function OpportunityTableForLeague({
                               {reward.stackSize > 1 ? `${reward.stackSize}x stack -> ` : ""}
                               {reward.rewardQuantity}x{" "}
                               <button
-                                onClick={() =>
+                                onClick={() => {
+                                  copy(`reward-${item.id}`, reward.rewardName);
                                   setHistoryTarget({
                                     category: reward.category,
                                     itemId: slugify(reward.rewardName),
                                     itemName: reward.rewardName,
                                     rawId: rewardNinjaId,
-                                  })
-                                }
+                                  });
+                                }}
                                 className="underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
-                                title="View price history"
+                                title="Click to copy name, view price history"
                               >
                                 {reward.rewardName}
                               </button>
+                              {copiedKey === `reward-${item.id}` && (
+                                <span className="ml-1 text-xs text-[var(--good)]">Copied!</span>
+                              )}
                             </div>
                             <div className="text-xs text-[var(--muted)]">
                               {computedRewardValue !== undefined

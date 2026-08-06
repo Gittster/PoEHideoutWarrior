@@ -9,6 +9,7 @@ import { DIVINATION_CARD_GOLD_COSTS } from "@/lib/arbitrage/goldCosts";
 import type { PoeNinjaItem } from "@/lib/poeninja";
 import { formatChaos } from "@/lib/format";
 import { slugify } from "@/lib/slug";
+import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
 import { PriceHistoryModal } from "@/components/PriceHistoryModal";
 
 async function fetchDivinationCards(league: string): Promise<PoeNinjaItem[]> {
@@ -50,6 +51,7 @@ function DivinationCardReferenceTableForLeague({ league }: { league: string }) {
   const [missingRewardOnly, setMissingRewardOnly] = useState(false);
   const [missingGoldOnly, setMissingGoldOnly] = useState(false);
   const [sortMode, setSortMode] = useState<"name" | "value">("name");
+  const { copiedKey, copy } = useCopyToClipboard();
   const [historyTarget, setHistoryTarget] = useState<{
     category: string;
     itemId: string;
@@ -188,19 +190,23 @@ function DivinationCardReferenceTableForLeague({ league }: { league: string }) {
                 <tr key={item.id} className="border-b border-[var(--border)] last:border-0">
                   <td className="px-3 py-2">
                     <button
-                      onClick={() =>
+                      onClick={() => {
+                        copy(item.id, item.name);
                         setHistoryTarget({
                           category: "DivinationCard",
                           itemId: slugify(item.name),
                           itemName: item.name,
                           rawId: item.ninjaId,
-                        })
-                      }
+                        });
+                      }}
                       className="font-medium underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
-                      title="View price history"
+                      title="Click to copy name, view price history"
                     >
                       {item.name}
                     </button>
+                    {copiedKey === item.id && (
+                      <span className="ml-1 text-xs text-[var(--good)]">Copied!</span>
+                    )}
                   </td>
                   <td className="px-3 py-2">{stackSize ?? "-"}</td>
                   <td className={`px-3 py-2 ${reward.mapped ? "" : "text-[var(--muted)]"}`}>

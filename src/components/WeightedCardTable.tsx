@@ -18,6 +18,7 @@ import type { WeightedCardEntry, WeightedCardOutcome } from "@/lib/arbitrage/wei
 import type { PoeNinjaItem } from "@/lib/poeninja";
 import { formatChaos } from "@/lib/format";
 import { slugify } from "@/lib/slug";
+import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
 import { PriceHistoryModal } from "@/components/PriceHistoryModal";
 
 const EMPTY_REWARDS: Record<string, WeightedCardEntry> = {};
@@ -138,6 +139,7 @@ function WeightedCardTableForLeague({
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const { copiedKey, copy } = useCopyToClipboard();
 
   const [buyOverrides, setBuyOverrides] = useState<BuyOverrideMap>(() =>
     loadBuyOverrides(league, technique.slug),
@@ -267,19 +269,23 @@ function WeightedCardTableForLeague({
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <button
-                  onClick={() =>
+                  onClick={() => {
+                    copy(`card-${row.cardName}`, row.cardName);
                     setHistoryTarget({
                       category: technique.category,
                       itemId: slugify(row.cardName),
                       itemName: row.cardName,
                       rawId: cardNinjaId,
-                    })
-                  }
+                    });
+                  }}
                   className="text-base font-semibold underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
-                  title="View price history"
+                  title="Click to copy name, view price history"
                 >
                   {row.cardName}
                 </button>
+                {copiedKey === `card-${row.cardName}` && (
+                  <span className="ml-1 text-xs text-[var(--good)]">Copied!</span>
+                )}
                 <div className="text-xs text-[var(--muted)]">Market: {formatChaos(cardPrice)}c</div>
               </div>
 
@@ -359,19 +365,23 @@ function WeightedCardTableForLeague({
                     <tr key={o.rewardName} className="border-b border-[var(--border)] last:border-0">
                       <td className="px-2 py-1">
                         <button
-                          onClick={() =>
+                          onClick={() => {
+                            copy(`outcome-${o.rewardName}`, o.rewardName);
                             setHistoryTarget({
                               category: o.category,
                               itemId: slugify(o.rewardName),
                               itemName: o.rewardName,
                               rawId: o.ninjaId,
-                            })
-                          }
+                            });
+                          }}
                           className="underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
-                          title="View price history"
+                          title="Click to copy name, view price history"
                         >
                           {o.rewardName}
                         </button>
+                        {copiedKey === `outcome-${o.rewardName}` && (
+                          <span className="ml-1 text-xs text-[var(--good)]">Copied!</span>
+                        )}
                         {o.rewardQuantity > 1 && (
                           <span className="text-xs text-[var(--muted)]"> x{o.rewardQuantity}</span>
                         )}
