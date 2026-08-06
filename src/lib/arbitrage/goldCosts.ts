@@ -71,6 +71,7 @@ export const DIVINATION_CARD_GOLD_COSTS: Record<string, number> = {
   "The Card Sharp": 275,
   "The Hoarder": 150,
   "The Cache": 100,
+  "Loyalty": 20,
 };
 
 export function getDivinationCardGoldCost(cardName: string): number | undefined {
