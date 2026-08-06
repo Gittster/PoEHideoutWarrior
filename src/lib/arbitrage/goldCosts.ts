@@ -74,6 +74,7 @@ export const DIVINATION_CARD_GOLD_COSTS: Record<string, number> = {
   "Loyalty": 20,
   "The Rusted Bard": 425,
   "The Innocent": 200,
+  "Ambitious Obsession": 1850,
 };
 
 export function getDivinationCardGoldCost(cardName: string): number | undefined {
