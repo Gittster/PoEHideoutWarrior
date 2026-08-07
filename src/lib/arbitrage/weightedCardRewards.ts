@@ -64,4 +64,37 @@ export const WEIGHTED_CARD_REWARDS: Record<string, WeightedCardEntry> = {
       { rewardName: "Black Oil", category: "Oil", rewardQuantity: 10 },
     ],
   },
+  // A set of 5 exchanges for a stack of 5 fossils of one weighted-random
+  // type - same situation as the two cards above ("Fossil" isn't a real
+  // priceable item, the types below are), odds come from your log.
+  "The Tinkerer's Table": {
+    stackSize: 5,
+    outcomes: [
+      { rewardName: "Lucent Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Scorched Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Fundamental Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Glyphic Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Faceted Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Deft Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Serrated Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Prismatic Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Bound Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Shuddering Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Dense Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Gilded Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Hollow Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Frigid Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Fractured Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Bloodstained Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Jagged Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Pristine Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Sanctified Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Metallic Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Aberrant Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Opulent Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Tangled Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Corroded Fossil", category: "Fossil", rewardQuantity: 5 },
+      { rewardName: "Aetheric Fossil", category: "Fossil", rewardQuantity: 5 },
+    ],
+  },
 };

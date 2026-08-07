@@ -231,7 +231,6 @@ export const DIVINATION_CARD_REWARDS: Record<string, DivinationCardReward> = {
   "The Survivalist": { stackSize: 3, rewardQuantity: 7, rewardName: "Orb of Alchemy", category: "Currency" },
   "The Sword King's Salute": { stackSize: 7, rewardQuantity: 1, rewardName: "Daresso's Salute", category: "UniqueArmour" },
   "The Throne": { stackSize: 2, rewardQuantity: 1, rewardName: "Kaom's Roots", category: "UniqueArmour" },
-  "The Tinkerer's Table": { stackSize: 5, rewardQuantity: 5, rewardName: "Fossil", category: "Fossil" },
   "The Transformation": { stackSize: 5, rewardQuantity: 1, rewardName: "Tainted Mythic Orb", category: "Currency" },
   "The Union": { stackSize: 7, rewardQuantity: 10, rewardName: "Gemcutter's Prism", category: "Currency" },
   "The Visionary": { stackSize: 6, rewardQuantity: 1, rewardName: "Lioneye's Vision", category: "UniqueArmour" },
