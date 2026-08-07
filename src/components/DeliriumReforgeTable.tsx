@@ -4,13 +4,19 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useLeague } from "@/lib/league-context";
 import {
-  loadReforgeLog,
-  loadReforgeOverrides,
-  recordReforgeResult,
-  resetReforgeLog,
-  saveReforgeOverrides,
+  appendReforgeSession,
+  deleteReforgeSession,
+  loadReforgeBuyPreview,
+  loadReforgeSessions,
+  reforgeCount as sessionReforgeCount,
+  reforgeSessionCost,
+  reforgeSessionProfit,
+  reforgeSessionValue,
+  saveReforgeBuyPreview,
+  tallyFromReforgeSessions,
+  totalReforgeProfit,
   type ReforgeLogCounts,
-  type ReforgeOverrideMap,
+  type ReforgeSession,
 } from "@/lib/arbitrage/deliriumReforgeData";
 import type { ArbitrageTechnique } from "@/lib/arbitrage/techniques";
 import type { PoeNinjaItem } from "@/lib/poeninja";
@@ -18,9 +24,8 @@ import { formatChaos } from "@/lib/format";
 import { slugify } from "@/lib/slug";
 import { fetchCategory } from "@/lib/fetchCategory";
 import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
-import { useFavorites } from "@/lib/useFavorites";
 import { PriceHistoryModal } from "@/components/PriceHistoryModal";
-import { FavoriteButton } from "@/components/FavoriteButton";
+import { ReforgeSessionModal } from "@/components/ReforgeSessionModal";
 
 const DEFAULT_QUANTITY = 20;
 
@@ -34,6 +39,7 @@ function marginColorClass(margin: number | null): string {
 interface OutcomeInfo {
   name: string;
   price: number | undefined;
+  ninjaId: string;
   timesLogged: number;
   probability: number | null;
   contribution: number | undefined;
@@ -47,7 +53,14 @@ export function computeOutcomes(items: PoeNinjaItem[], log: ReforgeLogCounts): O
     const timesLogged = log[item.name] ?? 0;
     const probability = totalLogged > 0 ? timesLogged / totalLogged : null;
     const contribution = probability !== null ? probability * item.chaosValue : undefined;
-    return { name: item.name, price: item.chaosValue, timesLogged, probability, contribution };
+    return {
+      name: item.name,
+      price: item.chaosValue,
+      ninjaId: item.ninjaId,
+      timesLogged,
+      probability,
+      contribution,
+    };
   });
 }
 
@@ -93,18 +106,18 @@ function DeliriumReforgeTableForLeague({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const { copiedKey, copy } = useCopyToClipboard();
-  const { toggle: toggleFavorite, isFavorite } = useFavorites();
-
-  const [overrides, setOverrides] = useState<ReforgeOverrideMap>(() =>
-    loadReforgeOverrides(league, technique.slug),
-  );
-  const [log, setLog] = useState<ReforgeLogCounts>(() => loadReforgeLog(league, technique.slug));
   const [historyTarget, setHistoryTarget] = useState<{
     category: string;
     itemId: string;
     itemName: string;
     rawId: string;
   } | null>(null);
+
+  const [sessions, setSessions] = useState<ReforgeSession[]>(() => loadReforgeSessions(league, technique.slug));
+  const [sessionModalOpen, setSessionModalOpen] = useState(false);
+  const [buyPreview, setBuyPreview] = useState(() =>
+    loadReforgeBuyPreview(league, technique.slug, { buy: 0, quantity: DEFAULT_QUANTITY }),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -137,41 +150,10 @@ function DeliriumReforgeTableForLeague({
     };
   }, [league, technique, config]);
 
-  const updateOverride = (itemName: string, next: ReforgeOverrideMap[string]) => {
-    setOverrides((prev) => {
-      const merged = { ...prev, [itemName]: next };
-      saveReforgeOverrides(league, technique.slug, merged);
-      return merged;
-    });
-  };
-
-  const resetOverride = (itemName: string) => {
-    setOverrides((prev) => {
-      const merged = { ...prev };
-      delete merged[itemName];
-      saveReforgeOverrides(league, technique.slug, merged);
-      return merged;
-    });
-  };
-
-  const logResult = (outcomeName: string) => {
-    const next = recordReforgeResult(league, technique.slug, outcomeName);
-    setLog(next);
-  };
-
-  const clearLog = () => {
-    resetReforgeLog(league, technique.slug);
-    setLog({});
-  };
-
+  const log = useMemo(() => tallyFromReforgeSessions(sessions), [sessions]);
   const totalLogged = useMemo(() => Object.values(log).reduce((a, b) => a + b, 0), [log]);
-
   const outcomes = useMemo<OutcomeInfo[]>(() => (items ? computeOutcomes(items, log) : []), [items, log]);
-
-  const evPerUnit = useMemo(
-    () => computeEvPerUnit(outcomes, totalLogged),
-    [outcomes, totalLogged],
-  );
+  const evPerUnit = useMemo(() => computeEvPerUnit(outcomes, totalLogged), [outcomes, totalLogged]);
 
   // Flat fee per reforge operation - independent of stack size, so
   // rerolling a stack of 10 costs exactly the same as rerolling a stack of
@@ -179,10 +161,29 @@ function DeliriumReforgeTableForLeague({
   const ingredientCost =
     config && ingredientPrice !== undefined ? config.ingredientQuantity * ingredientPrice : undefined;
 
-  const rows = useMemo(() => {
-    if (!items) return [];
-    return items.map((item) => buildReforgeRow(item, overrides[item.name], ingredientCost, evPerUnit));
-  }, [items, overrides, ingredientCost, evPerUnit]);
+  const updateBuyPreview = (patch: Partial<{ buy: number; quantity: number }>) => {
+    setBuyPreview((prev) => {
+      const next = { ...prev, ...patch };
+      saveReforgeBuyPreview(league, technique.slug, next);
+      return next;
+    });
+  };
+
+  const submitSession = (session: ReforgeSession) => {
+    setSessions(appendReforgeSession(league, technique.slug, session));
+    setSessionModalOpen(false);
+  };
+
+  const removeSession = (sessionId: string) => {
+    setSessions(deleteReforgeSession(league, technique.slug, sessionId));
+  };
+
+  const allTimeProfit = useMemo(() => totalReforgeProfit(sessions), [sessions]);
+
+  const stackCost = buyPreview.buy * buyPreview.quantity + (ingredientCost ?? 0);
+  const evTotal = evPerUnit !== null ? evPerUnit * buyPreview.quantity : null;
+  const margin = evTotal !== null ? evTotal - stackCost : null;
+  const marginPercent = margin === null ? null : stackCost > 0 ? (margin / stackCost) * 100 : 0;
 
   if (loading) {
     return <p className="text-sm text-[var(--muted)]">Loading live prices for {league}...</p>;
@@ -201,57 +202,111 @@ function DeliriumReforgeTableForLeague({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      {sessions.length > 0 && (
+        <div className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
           <div className="text-sm text-[var(--muted)]">
-            {config?.ingredientName} cost per reforge ({config?.ingredientQuantity.toLocaleString()}x,
-            regardless of stack size):{" "}
-            <span className="font-medium text-[var(--foreground)]">
-              {ingredientCost !== undefined ? `${formatChaos(ingredientCost)}c` : "unknown"}
-            </span>
+            All-time, across {sessions.length} logged session{sessions.length === 1 ? "" : "s"}
           </div>
-          <div className="text-sm text-[var(--muted)]">
-            Expected value per orb reforged:{" "}
-            <span className="font-medium text-[var(--foreground)]">
-              {evPerUnit === null ? "unavailable" : `${formatChaos(evPerUnit)}c`}
-            </span>
-            {totalLogged > 0 && <span> (from {totalLogged} logged results)</span>}
+          <div className={`text-lg font-semibold ${marginColorClass(allTimeProfit)}`}>
+            {allTimeProfit >= 0 ? "+" : ""}
+            {formatChaos(allTimeProfit)}c profit
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-[var(--muted)]">Your cost per orb (chaos)</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={buyPreview.buy}
+                onChange={(e) => updateBuyPreview({ buy: Number(e.target.value) || 0 })}
+                className="w-20 rounded border border-[var(--border)] bg-[var(--surface-alt)] px-1 py-0.5 text-xs"
+              />
+              <span className="text-xs text-[var(--muted)]">x</span>
+              <input
+                type="number"
+                min={1}
+                value={buyPreview.quantity}
+                onChange={(e) => updateBuyPreview({ quantity: Math.max(1, Number(e.target.value) || 1) })}
+                className="w-16 rounded border border-[var(--border)] bg-[var(--surface-alt)] px-1 py-0.5 text-xs"
+              />
+              <span className="text-xs text-[var(--muted)]">orbs per reforge</span>
+            </div>
+            <div className="text-xs text-[var(--muted)]">
+              {config?.ingredientName} ({config?.ingredientQuantity.toLocaleString()}x, flat per reforge):{" "}
+              {ingredientCost !== undefined ? `${formatChaos(ingredientCost)}c` : "unknown"}
+            </div>
+            <div className="text-xs text-[var(--muted)]">Stack cost: {formatChaos(stackCost)}c</div>
+          </div>
+
+          <div className="text-right">
+            <div className="text-xs text-[var(--muted)]">Expected value (batch)</div>
+            <div className="text-base font-semibold">{evTotal === null ? "unavailable" : `${formatChaos(evTotal)}c`}</div>
+            <div className={`text-sm ${marginColorClass(margin)}`}>
+              {margin === null
+                ? "-"
+                : `${margin >= 0 ? "+" : ""}${formatChaos(margin)} (${
+                    marginPercent !== null && marginPercent >= 0 ? "+" : ""
+                  }${marginPercent?.toFixed(0)}%)`}
+            </div>
+            {totalLogged > 0 && <div className="text-xs text-[var(--muted)]">from {totalLogged} logged results</div>}
+            <button
+              onClick={() => setSessionModalOpen(true)}
+              className="mt-2 rounded-md border border-[var(--border)] px-2 py-1 text-xs hover:border-[var(--accent)] hover:text-[var(--foreground)]"
+            >
+              Log a session
+            </button>
           </div>
         </div>
 
         {totalLogged === 0 && (
           <p className="mt-3 text-xs text-[var(--bad)]">
-            No odds are known yet - log a reforge result below to start computing an expected value.
+            No odds are known yet - log a session below to start computing an expected value.
           </p>
         )}
 
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[560px] border-collapse text-sm">
+          <table className="w-full min-w-[520px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-[var(--border)] text-left text-xs text-[var(--muted)]">
                 <th className="px-2 py-1 font-medium">Possible outcome</th>
                 <th className="px-2 py-1 font-medium">Times logged</th>
                 <th className="px-2 py-1 font-medium">Your odds</th>
                 <th className="px-2 py-1 font-medium">Live price</th>
-                <th className="px-2 py-1 font-medium"></th>
+                <th className="px-2 py-1 font-medium">EV contribution</th>
               </tr>
             </thead>
             <tbody>
               {outcomes.map((o) => (
                 <tr key={o.name} className="border-b border-[var(--border)] last:border-0">
-                  <td className="px-2 py-1">{o.name}</td>
+                  <td className="px-2 py-1">
+                    <button
+                      onClick={() => {
+                        copy(o.name, o.name);
+                        setHistoryTarget({
+                          category: technique.category,
+                          itemId: slugify(o.name),
+                          itemName: o.name,
+                          rawId: o.ninjaId,
+                        });
+                      }}
+                      className="underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
+                      title="Click to copy name, view price history"
+                    >
+                      {o.name}
+                    </button>
+                    {copiedKey === o.name && <span className="ml-1 text-xs text-[var(--good)]">Copied!</span>}
+                  </td>
                   <td className="px-2 py-1">{o.timesLogged}</td>
                   <td className="px-2 py-1">
                     {o.probability === null ? "-" : `${(o.probability * 100).toFixed(1)}%`}
                   </td>
                   <td className="px-2 py-1">{formatChaos(o.price ?? 0)}c</td>
                   <td className="px-2 py-1">
-                    <button
-                      onClick={() => logResult(o.name)}
-                      className="rounded-md border border-[var(--border)] px-2 py-1 text-xs hover:border-[var(--accent)] hover:text-[var(--foreground)]"
-                    >
-                      Log this result
-                    </button>
+                    {o.contribution !== undefined ? `${formatChaos(o.contribution)}c` : "-"}
                   </td>
                 </tr>
               ))}
@@ -259,129 +314,59 @@ function DeliriumReforgeTableForLeague({
           </table>
         </div>
 
-        {totalLogged > 0 && (
-          <div className="mt-3 flex items-center gap-3 text-xs text-[var(--muted)]">
-            <button
-              onClick={clearLog}
-              className="underline hover:text-[var(--foreground)]"
-            >
-              Reset log ({totalLogged} results)
-            </button>
+        {sessions.length > 0 && (
+          <div className="mt-4">
+            <div className="mb-1 flex items-center justify-between text-xs text-[var(--muted)]">
+              <span>Sessions ({sessions.length})</span>
+              <span className={marginColorClass(allTimeProfit)}>
+                {allTimeProfit >= 0 ? "+" : ""}
+                {formatChaos(allTimeProfit)}c all-time
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[480px] border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-[var(--border)] text-left text-[var(--muted)]">
+                    <th className="px-2 py-1 font-medium">Logged</th>
+                    <th className="px-2 py-1 font-medium">Reforges</th>
+                    <th className="px-2 py-1 font-medium">Cost</th>
+                    <th className="px-2 py-1 font-medium">Value</th>
+                    <th className="px-2 py-1 font-medium">Profit</th>
+                    <th className="px-2 py-1 font-medium"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sessions.map((session) => {
+                    const cost = reforgeSessionCost(session);
+                    const value = reforgeSessionValue(session);
+                    const profit = reforgeSessionProfit(session);
+                    return (
+                      <tr key={session.id} className="border-b border-[var(--border)] last:border-0">
+                        <td className="px-2 py-1">{new Date(session.timestamp).toLocaleString()}</td>
+                        <td className="px-2 py-1">{sessionReforgeCount(session)}</td>
+                        <td className="px-2 py-1">{formatChaos(cost)}c</td>
+                        <td className="px-2 py-1">{formatChaos(value)}c</td>
+                        <td className={`px-2 py-1 ${marginColorClass(profit)}`}>
+                          {profit >= 0 ? "+" : ""}
+                          {formatChaos(profit)}c
+                        </td>
+                        <td className="px-2 py-1">
+                          <button
+                            onClick={() => removeSession(session.id)}
+                            className="text-[var(--muted)] underline hover:text-[var(--bad)]"
+                          >
+                            delete
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
-
-      {rows.length > 0 && (
-        <div className="scroll-x-visible overflow-x-auto rounded-lg border border-[var(--border)]">
-          <table className="w-full min-w-[900px] border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-[var(--border)] bg-[var(--surface-alt)] text-left text-xs text-[var(--muted)]">
-                <th className="px-3 py-2 font-medium">Orb</th>
-                <th className="px-3 py-2 font-medium">Market (chaos)</th>
-                <th className="px-3 py-2 font-medium">{technique.buyLabel}</th>
-                <th className="px-3 py-2 font-medium">Quantity</th>
-                <th className="px-3 py-2 font-medium">Total cost</th>
-                <th className="px-3 py-2 font-medium">Expected value (batch)</th>
-                <th className="px-3 py-2 font-medium">Margin</th>
-                <th className="px-3 py-2 font-medium">Margin %</th>
-                <th className="px-3 py-2 font-medium"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(({ item, buy, quantity, stackCost, totalCost, evTotal, margin, marginPercent }) => {
-                const buySliderMax = Math.max(item.chaosValue * 2, 10);
-                return (
-                  <tr key={item.id} className="border-b border-[var(--border)] last:border-0">
-                    <td className="px-3 py-2">
-                      <FavoriteButton
-                        active={isFavorite(technique.slug, item.name)}
-                        onClick={() => toggleFavorite({ techniqueSlug: technique.slug, itemName: item.name })}
-                      />{" "}
-                      <button
-                        onClick={() => {
-                          copy(item.id, item.name);
-                          setHistoryTarget({
-                            category: technique.category,
-                            itemId: slugify(item.name),
-                            itemName: item.name,
-                            rawId: item.ninjaId,
-                          });
-                        }}
-                        className="font-medium underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
-                        title="Click to copy name, view price history"
-                      >
-                        {item.name}
-                      </button>
-                      {copiedKey === item.id && (
-                        <span className="ml-1 text-xs text-[var(--good)]">Copied!</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">{formatChaos(item.chaosValue)}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="range"
-                          min={0}
-                          max={buySliderMax}
-                          step={buySliderMax / 200}
-                          value={buy}
-                          onChange={(e) =>
-                            updateOverride(item.name, { buy: Number(e.target.value), quantity })
-                          }
-                          className="w-16"
-                        />
-                        <input
-                          type="number"
-                          value={Number(buy.toFixed(2))}
-                          onChange={(e) =>
-                            updateOverride(item.name, { buy: Number(e.target.value) || 0, quantity })
-                          }
-                          className="w-20 rounded border border-[var(--border)] bg-[var(--surface-alt)] px-1 py-0.5 text-xs"
-                        />
-                      </div>
-                      <div className="mt-1 text-xs text-[var(--muted)]">
-                        Stack cost: {formatChaos(stackCost)}c
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        min={1}
-                        step={1}
-                        value={quantity}
-                        onChange={(e) =>
-                          updateOverride(item.name, { buy, quantity: Math.max(1, Number(e.target.value) || 1) })
-                        }
-                        className="w-20 rounded border border-[var(--border)] bg-[var(--surface-alt)] px-1 py-0.5 text-xs"
-                      />
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      {totalCost === undefined ? "unknown" : `${formatChaos(totalCost)}c`}
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      {evTotal === null ? "unavailable" : `${formatChaos(evTotal)}c`}
-                    </td>
-                    <td className={`px-3 py-2 whitespace-nowrap ${marginColorClass(margin)}`}>
-                      {margin === null ? "-" : `${margin >= 0 ? "+" : ""}${formatChaos(margin)}`}
-                    </td>
-                    <td className={`px-3 py-2 whitespace-nowrap ${marginColorClass(margin)}`}>
-                      {marginPercent === null ? "-" : `${marginPercent >= 0 ? "+" : ""}${marginPercent.toFixed(0)}%`}
-                    </td>
-                    <td className="px-3 py-2">
-                      <button
-                        onClick={() => resetOverride(item.name)}
-                        className="text-xs text-[var(--muted)] underline hover:text-[var(--foreground)]"
-                      >
-                        reset
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
 
       {historyTarget && (
         <PriceHistoryModal
@@ -391,6 +376,17 @@ function DeliriumReforgeTableForLeague({
           rawId={historyTarget.rawId}
           league={league}
           onClose={() => setHistoryTarget(null)}
+        />
+      )}
+
+      {sessionModalOpen && (
+        <ReforgeSessionModal
+          defaultBuyPrice={buyPreview.buy}
+          defaultIngredientCost={ingredientCost ?? 0}
+          defaultQuantity={buyPreview.quantity}
+          outcomes={outcomes.map((o) => ({ itemName: o.name, price: o.price }))}
+          onSubmit={submitSession}
+          onClose={() => setSessionModalOpen(false)}
         />
       )}
     </div>
