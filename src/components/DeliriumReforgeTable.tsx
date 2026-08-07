@@ -62,14 +62,13 @@ export function computeEvPerUnit(outcomes: OutcomeInfo[], totalLogged: number): 
 export function buildReforgeRow(
   item: PoeNinjaItem,
   override: { buy: number; quantity: number } | undefined,
-  ingredientCostPerUnit: number | undefined,
+  ingredientCost: number | undefined,
   evPerUnit: number | null,
 ) {
   const buy = override?.buy ?? item.chaosValue;
   const quantity = override?.quantity ?? DEFAULT_QUANTITY;
   const stackCost = buy * quantity;
-  const totalCost =
-    ingredientCostPerUnit !== undefined ? stackCost + ingredientCostPerUnit * quantity : undefined;
+  const totalCost = ingredientCost !== undefined ? stackCost + ingredientCost : undefined;
   const evTotal = evPerUnit !== null ? evPerUnit * quantity : null;
   const margin = totalCost !== undefined && evTotal !== null ? evTotal - totalCost : null;
   const marginPercent = margin === null ? null : totalCost! > 0 ? (margin / totalCost!) * 100 : 0;
@@ -174,20 +173,16 @@ function DeliriumReforgeTableForLeague({
     [outcomes, totalLogged],
   );
 
-  // Per-orb rate, not a flat fee - the ingredient cost scales with how many
-  // you're reforging (e.g. 300 lifeforce is calibrated to a stack of 10, so
-  // the rate is 30/orb regardless of batch size).
-  const ingredientCostPerUnit =
-    config && ingredientPrice !== undefined
-      ? (config.ingredientQuantity / config.referenceStackSize) * ingredientPrice
-      : undefined;
+  // Flat fee per reforge operation - independent of stack size, so
+  // rerolling a stack of 10 costs exactly the same as rerolling a stack of
+  // 100.
+  const ingredientCost =
+    config && ingredientPrice !== undefined ? config.ingredientQuantity * ingredientPrice : undefined;
 
   const rows = useMemo(() => {
     if (!items) return [];
-    return items.map((item) =>
-      buildReforgeRow(item, overrides[item.name], ingredientCostPerUnit, evPerUnit),
-    );
-  }, [items, overrides, ingredientCostPerUnit, evPerUnit]);
+    return items.map((item) => buildReforgeRow(item, overrides[item.name], ingredientCost, evPerUnit));
+  }, [items, overrides, ingredientCost, evPerUnit]);
 
   if (loading) {
     return <p className="text-sm text-[var(--muted)]">Loading live prices for {league}...</p>;
@@ -209,11 +204,10 @@ function DeliriumReforgeTableForLeague({
       <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="text-sm text-[var(--muted)]">
-            {config?.ingredientName} cost per orb reforged (
-            {config ? (config.ingredientQuantity / config.referenceStackSize).toLocaleString() : ""}
-            x):{" "}
+            {config?.ingredientName} cost per reforge ({config?.ingredientQuantity.toLocaleString()}x,
+            regardless of stack size):{" "}
             <span className="font-medium text-[var(--foreground)]">
-              {ingredientCostPerUnit !== undefined ? `${formatChaos(ingredientCostPerUnit)}c` : "unknown"}
+              {ingredientCost !== undefined ? `${formatChaos(ingredientCost)}c` : "unknown"}
             </span>
           </div>
           <div className="text-sm text-[var(--muted)]">

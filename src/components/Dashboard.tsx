@@ -44,10 +44,8 @@ async function computeTechniqueRows(
       fetchCategory(config.ingredientCategory, league).catch(() => []),
     ]);
     const ingredient = ingredientData.find((i) => i.name === config.ingredientName);
-    const ingredientCostPerUnit =
-      ingredient !== undefined
-        ? (config.ingredientQuantity / config.referenceStackSize) * ingredient.chaosValue
-        : undefined;
+    const ingredientCost =
+      ingredient !== undefined ? config.ingredientQuantity * ingredient.chaosValue : undefined;
     const log = loadReforgeLog(league, technique.slug);
     const totalLogged = Object.values(log).reduce((a, b) => a + b, 0);
     const outcomes = computeOutcomes(items, log);
@@ -55,7 +53,7 @@ async function computeTechniqueRows(
     const overrides = loadReforgeOverrides(league, technique.slug);
 
     return items.map((item) => {
-      const row = buildReforgeRow(item, overrides[item.name], ingredientCostPerUnit, evPerUnit);
+      const row = buildReforgeRow(item, overrides[item.name], ingredientCost, evPerUnit);
       return {
         techniqueSlug: technique.slug,
         techniqueTitle: technique.title,
