@@ -60,8 +60,10 @@ export interface ArbitrageTechnique {
     ingredientName: string;
     /** poe.ninja category the ingredient's own price is fetched from. */
     ingredientCategory: string;
-    /** Fixed cost per reforge operation, independent of how many items you're reforging. */
+    /** Ingredient cost for reforging `referenceStackSize` items - scales linearly with quantity, not a flat fee. */
     ingredientQuantity: number;
+    /** The stack size `ingredientQuantity` is calibrated against, e.g. 300 lifeforce per 10 orbs. */
+    referenceStackSize: number;
   };
 }
 
@@ -153,16 +155,16 @@ export const ARBITRAGE_TECHNIQUES: ArbitrageTechnique[] = [
       "Buy the cheapest Delirium Orb type in bulk, reforge the stack at the Harvest bench into a random other type, and sell whatever comes out.",
     category: "DeliriumOrb",
     overview: [
-      "The Harvest bench can reforge a stack of Delirium Orbs into an equal-sized stack of a random different Delirium Orb type, for a flat Primal Crystallised Lifeforce cost regardless of how many you're reforging - so a bigger batch dilutes that fixed fee per orb. The arbitrage is buying whichever Delirium Orb is currently cheapest in bulk, then reforging for a shot at something worth more.",
+      "The Harvest bench can reforge a stack of Delirium Orbs into an equal-sized stack of a random different Delirium Orb type, for a Primal Crystallised Lifeforce cost that scales with the stack (300 per 10 orbs, i.e. 30 per orb). The arbitrage is buying whichever Delirium Orb is currently cheapest in bulk, then reforging for a shot at something worth more.",
       "Like the variable-reward cards, GGG doesn't publish the reforge odds, so this page doesn't guess: log what you actually get back after each reforge and it builds up real odds from that. The log is shared across every starting orb below, since the output pool should be the same regardless of what you fed in - flag it if that assumption turns out wrong.",
     ],
     mechanics: [
-      "Total cost = (buy price x quantity) + (Primal Crystallised Lifeforce price x 300) - the lifeforce cost doesn't scale with quantity.",
+      "Total cost = (buy price x quantity) + (quantity x 30 x Primal Crystallised Lifeforce price) - the lifeforce cost scales with how many you're reforging, same rate per orb regardless of batch size.",
       "Expected value per orb = sum over each possible outcome of (your logged share of results for it) x (its live price); multiply by quantity for the batch total.",
-      "Bigger batches are more gold/lifeforce-efficient since the fixed reforge fee is spread over more orbs - but also concentrate more chaos into one random outcome.",
+      "There's no fixed-fee dilution benefit to bigger batches here (lifeforce cost is linear) - batch size mainly matters for how much variance you're comfortable concentrating into one random outcome.",
     ],
     risks: [
-      "The reforge mechanics modeled here (flat lifeforce fee regardless of stack size, one shared output pool across all starting orb types) are assumptions, not verified against a source - correct the numbers in techniques.ts if reality differs.",
+      "The reforge mechanics modeled here (lifeforce cost scaling linearly at 30 per orb, one shared output pool across all starting orb types) are assumptions, not verified against a source - correct the numbers in techniques.ts if reality differs.",
       "The odds shown are only as good as your own logged sample size - an outcome you haven't pulled yet still shows 0% even though it's possible.",
       "Delirium Orb prices move with league-mechanic popularity, so 'cheapest right now' can shift fast.",
     ],
@@ -173,6 +175,7 @@ export const ARBITRAGE_TECHNIQUES: ArbitrageTechnique[] = [
       ingredientName: "Primal Crystallised Lifeforce",
       ingredientCategory: "Currency",
       ingredientQuantity: 300,
+      referenceStackSize: 10,
     },
   },
   {

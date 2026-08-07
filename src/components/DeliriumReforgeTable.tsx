@@ -62,13 +62,14 @@ export function computeEvPerUnit(outcomes: OutcomeInfo[], totalLogged: number): 
 export function buildReforgeRow(
   item: PoeNinjaItem,
   override: { buy: number; quantity: number } | undefined,
-  ingredientCost: number | undefined,
+  ingredientCostPerUnit: number | undefined,
   evPerUnit: number | null,
 ) {
   const buy = override?.buy ?? item.chaosValue;
   const quantity = override?.quantity ?? DEFAULT_QUANTITY;
   const stackCost = buy * quantity;
-  const totalCost = ingredientCost !== undefined ? stackCost + ingredientCost : undefined;
+  const totalCost =
+    ingredientCostPerUnit !== undefined ? stackCost + ingredientCostPerUnit * quantity : undefined;
   const evTotal = evPerUnit !== null ? evPerUnit * quantity : null;
   const margin = totalCost !== undefined && evTotal !== null ? evTotal - totalCost : null;
   const marginPercent = margin === null ? null : totalCost! > 0 ? (margin / totalCost!) * 100 : 0;
@@ -99,7 +100,6 @@ function DeliriumReforgeTableForLeague({
     loadReforgeOverrides(league, technique.slug),
   );
   const [log, setLog] = useState<ReforgeLogCounts>(() => loadReforgeLog(league, technique.slug));
-  const [pendingOutcome, setPendingOutcome] = useState("");
   const [historyTarget, setHistoryTarget] = useState<{
     category: string;
     itemId: string;
@@ -155,9 +155,8 @@ function DeliriumReforgeTableForLeague({
     });
   };
 
-  const logResult = () => {
-    if (!pendingOutcome) return;
-    const next = recordReforgeResult(league, technique.slug, pendingOutcome);
+  const logResult = (outcomeName: string) => {
+    const next = recordReforgeResult(league, technique.slug, outcomeName);
     setLog(next);
   };
 
@@ -175,13 +174,20 @@ function DeliriumReforgeTableForLeague({
     [outcomes, totalLogged],
   );
 
-  const ingredientCost =
-    config && ingredientPrice !== undefined ? config.ingredientQuantity * ingredientPrice : undefined;
+  // Per-orb rate, not a flat fee - the ingredient cost scales with how many
+  // you're reforging (e.g. 300 lifeforce is calibrated to a stack of 10, so
+  // the rate is 30/orb regardless of batch size).
+  const ingredientCostPerUnit =
+    config && ingredientPrice !== undefined
+      ? (config.ingredientQuantity / config.referenceStackSize) * ingredientPrice
+      : undefined;
 
   const rows = useMemo(() => {
     if (!items) return [];
-    return items.map((item) => buildReforgeRow(item, overrides[item.name], ingredientCost, evPerUnit));
-  }, [items, overrides, ingredientCost, evPerUnit]);
+    return items.map((item) =>
+      buildReforgeRow(item, overrides[item.name], ingredientCostPerUnit, evPerUnit),
+    );
+  }, [items, overrides, ingredientCostPerUnit, evPerUnit]);
 
   if (loading) {
     return <p className="text-sm text-[var(--muted)]">Loading live prices for {league}...</p>;
@@ -203,9 +209,11 @@ function DeliriumReforgeTableForLeague({
       <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="text-sm text-[var(--muted)]">
-            {config?.ingredientName} cost per reforge ({config?.ingredientQuantity.toLocaleString()}x):{" "}
+            {config?.ingredientName} cost per orb reforged (
+            {config ? (config.ingredientQuantity / config.referenceStackSize).toLocaleString() : ""}
+            x):{" "}
             <span className="font-medium text-[var(--foreground)]">
-              {ingredientCost !== undefined ? `${formatChaos(ingredientCost)}c` : "unknown"}
+              {ingredientCostPerUnit !== undefined ? `${formatChaos(ingredientCostPerUnit)}c` : "unknown"}
             </span>
           </div>
           <div className="text-sm text-[var(--muted)]">
@@ -224,13 +232,14 @@ function DeliriumReforgeTableForLeague({
         )}
 
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[480px] border-collapse text-sm">
+          <table className="w-full min-w-[560px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-[var(--border)] text-left text-xs text-[var(--muted)]">
                 <th className="px-2 py-1 font-medium">Possible outcome</th>
                 <th className="px-2 py-1 font-medium">Times logged</th>
                 <th className="px-2 py-1 font-medium">Your odds</th>
                 <th className="px-2 py-1 font-medium">Live price</th>
+                <th className="px-2 py-1 font-medium"></th>
               </tr>
             </thead>
             <tbody>
@@ -242,46 +251,30 @@ function DeliriumReforgeTableForLeague({
                     {o.probability === null ? "-" : `${(o.probability * 100).toFixed(1)}%`}
                   </td>
                   <td className="px-2 py-1">{formatChaos(o.price ?? 0)}c</td>
+                  <td className="px-2 py-1">
+                    <button
+                      onClick={() => logResult(o.name)}
+                      className="rounded-md border border-[var(--border)] px-2 py-1 text-xs hover:border-[var(--accent)] hover:text-[var(--foreground)]"
+                    >
+                      Log this result
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-[var(--border)] pt-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-[var(--muted)]">Log a reforge result</label>
-            <div className="flex items-center gap-2">
-              <select
-                value={pendingOutcome}
-                onChange={(e) => setPendingOutcome(e.target.value)}
-                className="rounded-md border border-[var(--border)] bg-[var(--surface-alt)] px-2 py-1 text-sm outline-none focus:border-[var(--accent)]"
-              >
-                <option value="">Select what you got...</option>
-                {outcomes.map((o) => (
-                  <option key={o.name} value={o.name}>
-                    {o.name}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={logResult}
-                disabled={!pendingOutcome}
-                className="rounded-md border border-[var(--border)] px-3 py-1 text-xs hover:border-[var(--accent)] hover:text-[var(--foreground)] disabled:opacity-40"
-              >
-                Log
-              </button>
-            </div>
-          </div>
-          {totalLogged > 0 && (
+        {totalLogged > 0 && (
+          <div className="mt-3 flex items-center gap-3 text-xs text-[var(--muted)]">
             <button
               onClick={clearLog}
-              className="ml-auto text-xs text-[var(--muted)] underline hover:text-[var(--foreground)]"
+              className="underline hover:text-[var(--foreground)]"
             >
               Reset log ({totalLogged} results)
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {rows.length > 0 && (
