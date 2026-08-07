@@ -41,4 +41,27 @@ export const WEIGHTED_CARD_REWARDS: Record<string, WeightedCardEntry> = {
       },
     ],
   },
+  // A set of 8 exchanges for a stack of 10 oils of one weighted-random type
+  // (not previously mappable under divinationCardRewards.ts's single-reward
+  // model - "Oil" isn't a real priceable item, the 13 types below are).
+  // Wiki states the weighting favors Clear over Golden but doesn't publish
+  // exact odds, same situation as The Card Sharp - odds come from your log.
+  "The Tireless Extractor": {
+    stackSize: 8,
+    outcomes: [
+      { rewardName: "Clear Oil", category: "Oil", rewardQuantity: 10 },
+      { rewardName: "Golden Oil", category: "Oil", rewardQuantity: 10 },
+      { rewardName: "Crimson Oil", category: "Oil", rewardQuantity: 10 },
+      { rewardName: "Sepia Oil", category: "Oil", rewardQuantity: 10 },
+      { rewardName: "Amber Oil", category: "Oil", rewardQuantity: 10 },
+      { rewardName: "Indigo Oil", category: "Oil", rewardQuantity: 10 },
+      { rewardName: "Azure Oil", category: "Oil", rewardQuantity: 10 },
+      { rewardName: "Silver Oil", category: "Oil", rewardQuantity: 10 },
+      { rewardName: "Verdant Oil", category: "Oil", rewardQuantity: 10 },
+      { rewardName: "Opalescent Oil", category: "Oil", rewardQuantity: 10 },
+      { rewardName: "Teal Oil", category: "Oil", rewardQuantity: 10 },
+      { rewardName: "Violet Oil", category: "Oil", rewardQuantity: 10 },
+      { rewardName: "Black Oil", category: "Oil", rewardQuantity: 10 },
+    ],
+  },
 };

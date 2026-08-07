@@ -4,13 +4,21 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useLeague } from "@/lib/league-context";
 import {
+  appendSession,
+  deleteSession,
   loadBuyOverrides,
-  loadCardLog,
-  recordCardResult,
-  resetCardLog,
+  loadSessions,
   saveBuyOverrides,
+  sessionCost,
+  sessionProfit,
+  sessionStacksProcessed,
+  sessionValue,
+  sessionsForCard,
+  tallyFromSessions,
+  totalProfit,
   type BuyOverrideMap,
   type CardLogCounts,
+  type CardSession,
 } from "@/lib/arbitrage/weightedCardData";
 import type { ArbitrageTechnique } from "@/lib/arbitrage/techniques";
 import { goldCostLookupFor } from "@/lib/arbitrage/goldCosts";
@@ -22,6 +30,7 @@ import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
 import { useFavorites } from "@/lib/useFavorites";
 import { PriceHistoryModal } from "@/components/PriceHistoryModal";
 import { FavoriteButton } from "@/components/FavoriteButton";
+import { CardSessionModal } from "@/components/CardSessionModal";
 
 const EMPTY_REWARDS: Record<string, WeightedCardEntry> = {};
 
@@ -132,13 +141,16 @@ function WeightedCardTableForLeague({
   const [buyOverrides, setBuyOverrides] = useState<BuyOverrideMap>(() =>
     loadBuyOverrides(league, technique.slug),
   );
-  const [logsByCard, setLogsByCard] = useState<Record<string, CardLogCounts>>(() => {
-    const initial: Record<string, CardLogCounts> = {};
+  const [sessions, setSessions] = useState<CardSession[]>(() => loadSessions(league, technique.slug));
+  const [sessionModalCard, setSessionModalCard] = useState<string | null>(null);
+
+  const logsByCard = useMemo(() => {
+    const byCard: Record<string, CardLogCounts> = {};
     for (const cardName of Object.keys(rewards)) {
-      initial[cardName] = loadCardLog(league, technique.slug, cardName);
+      byCard[cardName] = tallyFromSessions(sessionsForCard(sessions, cardName));
     }
-    return initial;
-  });
+    return byCard;
+  }, [rewards, sessions]);
 
   useEffect(() => {
     let cancelled = false;
@@ -201,14 +213,13 @@ function WeightedCardTableForLeague({
     });
   };
 
-  const logResult = (cardName: string, rewardName: string) => {
-    const next = recordCardResult(league, technique.slug, cardName, rewardName);
-    setLogsByCard((prev) => ({ ...prev, [cardName]: next }));
+  const submitSession = (session: CardSession) => {
+    setSessions(appendSession(league, technique.slug, session));
+    setSessionModalCard(null);
   };
 
-  const clearLog = (cardName: string) => {
-    resetCardLog(league, technique.slug, cardName);
-    setLogsByCard((prev) => ({ ...prev, [cardName]: {} }));
+  const removeSession = (sessionId: string) => {
+    setSessions(deleteSession(league, technique.slug, sessionId));
   };
 
   const rows = useMemo(
@@ -226,6 +237,7 @@ function WeightedCardTableForLeague({
       ),
     [rewards, cardPrices, buyOverrides, outcomePrices, logsByCard, technique],
   );
+  const allTimeProfit = useMemo(() => totalProfit(sessions), [sessions]);
 
   if (loading) {
     return <p className="text-sm text-[var(--muted)]">Loading live prices for {league}...</p>;
@@ -244,10 +256,24 @@ function WeightedCardTableForLeague({
 
   return (
     <div className="flex flex-col gap-6">
+      {sessions.length > 0 && (
+        <div className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+          <div className="text-sm text-[var(--muted)]">
+            All-time, across {sessions.length} logged session{sessions.length === 1 ? "" : "s"}
+          </div>
+          <div className={`text-lg font-semibold ${marginColorClass(allTimeProfit)}`}>
+            {allTimeProfit >= 0 ? "+" : ""}
+            {formatChaos(allTimeProfit)}c profit
+          </div>
+        </div>
+      )}
+
       {rows.map((row) => {
         const cardPrice = cardPrices[row.cardName]?.chaosValue ?? 0;
         const cardNinjaId = cardPrices[row.cardName]?.ninjaId ?? "";
         const buySliderMax = Math.max(cardPrice * 2, 10);
+        const cardSessions = sessionsForCard(sessions, row.cardName);
+        const cardProfit = totalProfit(cardSessions);
 
         return (
           <div
@@ -330,13 +356,19 @@ function WeightedCardTableForLeague({
                 {row.goldPerChaos !== null && (
                   <div className="text-xs text-[var(--muted)]">{row.goldPerChaos.toFixed(1)} gold/chaos earned</div>
                 )}
+                <button
+                  onClick={() => setSessionModalCard(row.cardName)}
+                  className="mt-2 rounded-md border border-[var(--border)] px-2 py-1 text-xs hover:border-[var(--accent)] hover:text-[var(--foreground)]"
+                >
+                  Log a session
+                </button>
               </div>
             </div>
 
             {row.totalLogged === 0 && (
               <p className="mt-3 text-xs text-[var(--bad)]">
-                No odds are known for this card yet - log some results below to start computing an
-                expected value.
+                No odds are known for this card yet - log a session below to start computing an expected
+                value.
               </p>
             )}
 
@@ -349,7 +381,6 @@ function WeightedCardTableForLeague({
                     <th className="px-2 py-1 font-medium">Your odds</th>
                     <th className="px-2 py-1 font-medium">Live price</th>
                     <th className="px-2 py-1 font-medium">EV contribution</th>
-                    <th className="px-2 py-1 font-medium"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -388,28 +419,62 @@ function WeightedCardTableForLeague({
                       <td className="px-2 py-1">
                         {o.contribution !== undefined ? `${formatChaos(o.contribution)}c` : "-"}
                       </td>
-                      <td className="px-2 py-1">
-                        <button
-                          onClick={() => logResult(row.cardName, o.rewardName)}
-                          className="rounded-md border border-[var(--border)] px-2 py-1 text-xs hover:border-[var(--accent)] hover:text-[var(--foreground)]"
-                        >
-                          Log this result
-                        </button>
-                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
 
-            {row.totalLogged > 0 && (
-              <div className="mt-3 flex items-center gap-3 text-xs text-[var(--muted)]">
-                <button
-                  onClick={() => clearLog(row.cardName)}
-                  className="underline hover:text-[var(--foreground)]"
-                >
-                  Reset log ({row.totalLogged} results)
-                </button>
+            {cardSessions.length > 0 && (
+              <div className="mt-4">
+                <div className="mb-1 flex items-center justify-between text-xs text-[var(--muted)]">
+                  <span>Sessions ({cardSessions.length})</span>
+                  <span className={marginColorClass(cardProfit)}>
+                    {cardProfit >= 0 ? "+" : ""}
+                    {formatChaos(cardProfit)}c all-time
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[480px] border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-[var(--border)] text-left text-[var(--muted)]">
+                        <th className="px-2 py-1 font-medium">Logged</th>
+                        <th className="px-2 py-1 font-medium">Stacks</th>
+                        <th className="px-2 py-1 font-medium">Cost</th>
+                        <th className="px-2 py-1 font-medium">Value</th>
+                        <th className="px-2 py-1 font-medium">Profit</th>
+                        <th className="px-2 py-1 font-medium"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cardSessions.map((session) => {
+                        const cost = sessionCost(session);
+                        const value = sessionValue(session);
+                        const profit = sessionProfit(session);
+                        return (
+                          <tr key={session.id} className="border-b border-[var(--border)] last:border-0">
+                            <td className="px-2 py-1">{new Date(session.timestamp).toLocaleString()}</td>
+                            <td className="px-2 py-1">{sessionStacksProcessed(session)}</td>
+                            <td className="px-2 py-1">{formatChaos(cost)}c</td>
+                            <td className="px-2 py-1">{formatChaos(value)}c</td>
+                            <td className={`px-2 py-1 ${marginColorClass(profit)}`}>
+                              {profit >= 0 ? "+" : ""}
+                              {formatChaos(profit)}c
+                            </td>
+                            <td className="px-2 py-1">
+                              <button
+                                onClick={() => removeSession(session.id)}
+                                className="text-[var(--muted)] underline hover:text-[var(--bad)]"
+                              >
+                                delete
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>
@@ -426,6 +491,26 @@ function WeightedCardTableForLeague({
           onClose={() => setHistoryTarget(null)}
         />
       )}
+
+      {sessionModalCard &&
+        (() => {
+          const row = rows.find((r) => r.cardName === sessionModalCard);
+          if (!row) return null;
+          return (
+            <CardSessionModal
+              cardName={row.cardName}
+              stackSize={row.entry.stackSize}
+              defaultBuyPrice={row.buy}
+              outcomes={row.outcomeRows.map((o) => ({
+                rewardName: o.rewardName,
+                rewardQuantity: o.rewardQuantity,
+                price: o.price,
+              }))}
+              onSubmit={submitSession}
+              onClose={() => setSessionModalCard(null)}
+            />
+          );
+        })()}
     </div>
   );
 }
