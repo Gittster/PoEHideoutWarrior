@@ -6,6 +6,7 @@ import { useLeague } from "@/lib/league-context";
 import { ARBITRAGE_TECHNIQUES, type ArbitrageTechnique } from "@/lib/arbitrage/techniques";
 import { loadOverrides } from "@/lib/arbitrage/overrides";
 import { loadBuyOverrides, loadCardLog } from "@/lib/arbitrage/weightedCardData";
+import { loadReforgeLog, loadReforgeOverrides } from "@/lib/arbitrage/deliriumReforgeData";
 import { goldCostLookupFor } from "@/lib/arbitrage/goldCosts";
 import { fetchCategory } from "@/lib/fetchCategory";
 import { formatChaos } from "@/lib/format";
@@ -13,6 +14,7 @@ import { favoriteKey } from "@/lib/favorites";
 import { useFavorites } from "@/lib/useFavorites";
 import { buildRow } from "@/components/OpportunityTable";
 import { buildCardRow } from "@/components/WeightedCardTable";
+import { buildReforgeRow, computeEvPerUnit, computeOutcomes } from "@/components/DeliriumReforgeTable";
 import { FavoriteButton } from "@/components/FavoriteButton";
 
 interface DashboardRow {
@@ -34,6 +36,34 @@ async function computeTechniqueRows(
   league: string,
 ): Promise<DashboardRow[]> {
   const goldLookup = goldCostLookupFor(technique.goldCostSource);
+
+  if (technique.harvestReforgeConfig) {
+    const config = technique.harvestReforgeConfig;
+    const [items, ingredientData] = await Promise.all([
+      fetchCategory(technique.category, league),
+      fetchCategory(config.ingredientCategory, league).catch(() => []),
+    ]);
+    const ingredient = ingredientData.find((i) => i.name === config.ingredientName);
+    const ingredientCost =
+      ingredient !== undefined ? config.ingredientQuantity * ingredient.chaosValue : undefined;
+    const log = loadReforgeLog(league, technique.slug);
+    const totalLogged = Object.values(log).reduce((a, b) => a + b, 0);
+    const outcomes = computeOutcomes(items, log);
+    const evPerUnit = computeEvPerUnit(outcomes, totalLogged);
+    const overrides = loadReforgeOverrides(league, technique.slug);
+
+    return items.map((item) => {
+      const row = buildReforgeRow(item, overrides[item.name], ingredientCost, evPerUnit);
+      return {
+        techniqueSlug: technique.slug,
+        techniqueTitle: technique.title,
+        itemName: item.name,
+        chaosValue: item.chaosValue,
+        margin: row.margin,
+        marginPercent: row.marginPercent,
+      };
+    });
+  }
 
   if (technique.weightedRewardConfig) {
     const rewards = technique.weightedRewardConfig.rewards;

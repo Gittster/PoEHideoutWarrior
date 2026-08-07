@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ARBITRAGE_TECHNIQUES, getArbitrageTechnique } from "@/lib/arbitrage/techniques";
 import { OpportunityTable } from "@/components/OpportunityTable";
 import { WeightedCardTable } from "@/components/WeightedCardTable";
+import { DeliriumReforgeTable } from "@/components/DeliriumReforgeTable";
 
 export function generateStaticParams() {
   return ARBITRAGE_TECHNIQUES.map((t) => ({ slug: t.slug }));
@@ -65,7 +66,9 @@ export default async function ArbitrageTechniquePage({
 
       <section>
         <h2 className="mb-3 text-sm font-semibold text-[var(--accent)]">Live prices &amp; opportunity finder</h2>
-        {technique.weightedRewardConfig ? (
+        {technique.harvestReforgeConfig ? (
+          <DeliriumReforgeTable technique={technique} />
+        ) : technique.weightedRewardConfig ? (
           <WeightedCardTable technique={technique} />
         ) : (
           <OpportunityTable technique={technique} />
