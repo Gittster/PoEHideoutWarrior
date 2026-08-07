@@ -44,6 +44,8 @@ export interface CardSession {
   timestamp: number;
   /** Chaos cost per single card, editable at log time in case it differs from the live price. */
   buyPricePerCard: number;
+  /** Gold cost per single card through the Currency Exchange, editable at log time - pre-filled from goldCosts.ts, 0 if that card isn't mapped there. */
+  goldCostPerCard: number;
   stackSize: number;
   outcomes: CardSessionOutcome[];
 }
@@ -95,6 +97,10 @@ export function sessionCost(session: CardSession): number {
   return session.buyPricePerCard * session.stackSize * sessionStacksProcessed(session);
 }
 
+export function sessionGoldCost(session: CardSession): number {
+  return session.goldCostPerCard * session.stackSize * sessionStacksProcessed(session);
+}
+
 export function sessionValue(session: CardSession): number {
   return session.outcomes.reduce((sum, o) => sum + o.timesPulled * o.valuePerOccurrence, 0);
 }
@@ -105,4 +111,8 @@ export function sessionProfit(session: CardSession): number {
 
 export function totalProfit(sessions: CardSession[]): number {
   return sessions.reduce((sum, s) => sum + sessionProfit(s), 0);
+}
+
+export function totalGoldCost(sessions: CardSession[]): number {
+  return sessions.reduce((sum, s) => sum + sessionGoldCost(s), 0);
 }

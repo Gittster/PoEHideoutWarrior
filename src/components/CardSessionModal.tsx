@@ -15,6 +15,7 @@ interface Props {
   cardName: string;
   stackSize: number;
   defaultBuyPrice: number;
+  defaultGoldCost: number;
   outcomes: { rewardName: string; rewardQuantity: number; price: number | undefined }[];
   onSubmit: (session: CardSession) => void;
   onClose: () => void;
@@ -26,8 +27,17 @@ function marginColorClass(value: number): string {
   return "text-[var(--muted)]";
 }
 
-export function CardSessionModal({ cardName, stackSize, defaultBuyPrice, outcomes, onSubmit, onClose }: Props) {
+export function CardSessionModal({
+  cardName,
+  stackSize,
+  defaultBuyPrice,
+  defaultGoldCost,
+  outcomes,
+  onSubmit,
+  onClose,
+}: Props) {
   const [buyPricePerCard, setBuyPricePerCard] = useState(defaultBuyPrice);
+  const [goldCostPerCard, setGoldCostPerCard] = useState(defaultGoldCost);
   const [rows, setRows] = useState<OutcomeInput[]>(() =>
     outcomes.map((o) => ({
       rewardName: o.rewardName,
@@ -47,12 +57,21 @@ export function CardSessionModal({ cardName, stackSize, defaultBuyPrice, outcome
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
   const updateRow = (rewardName: string, patch: Partial<OutcomeInput>) => {
     setRows((prev) => prev.map((r) => (r.rewardName === rewardName ? { ...r, ...patch } : r)));
   };
 
   const stacksProcessed = rows.reduce((sum, r) => sum + r.timesPulled, 0);
   const totalCost = buyPricePerCard * stackSize * stacksProcessed;
+  const totalGoldCost = goldCostPerCard * stackSize * stacksProcessed;
   const totalValue = rows.reduce((sum, r) => sum + r.timesPulled * r.valuePerOccurrence, 0);
   const profit = totalValue - totalCost;
 
@@ -70,6 +89,7 @@ export function CardSessionModal({ cardName, stackSize, defaultBuyPrice, outcome
       cardName,
       timestamp: Date.now(),
       buyPricePerCard,
+      goldCostPerCard,
       stackSize,
       outcomes: sessionOutcomes,
     });
@@ -101,14 +121,25 @@ export function CardSessionModal({ cardName, stackSize, defaultBuyPrice, outcome
           </button>
         </div>
 
-        <div className="mb-4 flex items-center gap-2">
-          <label className="text-xs text-[var(--muted)]">Your cost per card (chaos)</label>
-          <input
-            type="number"
-            value={buyPricePerCard}
-            onChange={(e) => setBuyPricePerCard(Number(e.target.value) || 0)}
-            className="w-24 rounded border border-[var(--border)] bg-[var(--surface-alt)] px-1 py-0.5 text-xs"
-          />
+        <div className="mb-4 flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-[var(--muted)]">Your cost per card (chaos)</label>
+            <input
+              type="number"
+              value={buyPricePerCard}
+              onChange={(e) => setBuyPricePerCard(Number(e.target.value) || 0)}
+              className="w-24 rounded border border-[var(--border)] bg-[var(--surface-alt)] px-1 py-0.5 text-xs"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-[var(--muted)]">Gold cost per card</label>
+            <input
+              type="number"
+              value={goldCostPerCard}
+              onChange={(e) => setGoldCostPerCard(Number(e.target.value) || 0)}
+              className="w-24 rounded border border-[var(--border)] bg-[var(--surface-alt)] px-1 py-0.5 text-xs"
+            />
+          </div>
           <span className="text-xs text-[var(--muted)]">x {stackSize} per stack</span>
         </div>
 
@@ -154,7 +185,7 @@ export function CardSessionModal({ cardName, stackSize, defaultBuyPrice, outcome
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-[var(--border)] bg-[var(--surface-alt)] px-3 py-2">
           <div className="text-xs text-[var(--muted)]">
             {stacksProcessed} stack{stacksProcessed === 1 ? "" : "s"} processed - cost {formatChaos(totalCost)}c,
-            value {formatChaos(totalValue)}c
+            value {formatChaos(totalValue)}c, {totalGoldCost.toLocaleString()} gold
           </div>
           <div className={`text-sm font-semibold ${marginColorClass(profit)}`}>
             {profit >= 0 ? "+" : ""}

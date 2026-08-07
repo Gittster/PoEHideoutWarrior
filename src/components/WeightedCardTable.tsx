@@ -10,11 +10,13 @@ import {
   loadSessions,
   saveBuyOverrides,
   sessionCost,
+  sessionGoldCost,
   sessionProfit,
   sessionStacksProcessed,
   sessionValue,
   sessionsForCard,
   tallyFromSessions,
+  totalGoldCost,
   totalProfit,
   type BuyOverrideMap,
   type CardLogCounts,
@@ -238,6 +240,7 @@ function WeightedCardTableForLeague({
     [rewards, cardPrices, buyOverrides, outcomePrices, logsByCard, technique],
   );
   const allTimeProfit = useMemo(() => totalProfit(sessions), [sessions]);
+  const allTimeGoldCost = useMemo(() => totalGoldCost(sessions), [sessions]);
 
   if (loading) {
     return <p className="text-sm text-[var(--muted)]">Loading live prices for {league}...</p>;
@@ -260,6 +263,7 @@ function WeightedCardTableForLeague({
         <div className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
           <div className="text-sm text-[var(--muted)]">
             All-time, across {sessions.length} logged session{sessions.length === 1 ? "" : "s"}
+            {allTimeGoldCost > 0 && ` - ${allTimeGoldCost.toLocaleString()} gold spent`}
           </div>
           <div className={`text-lg font-semibold ${marginColorClass(allTimeProfit)}`}>
             {allTimeProfit >= 0 ? "+" : ""}
@@ -429,18 +433,23 @@ function WeightedCardTableForLeague({
               <div className="mt-4">
                 <div className="mb-1 flex items-center justify-between text-xs text-[var(--muted)]">
                   <span>Sessions ({cardSessions.length})</span>
-                  <span className={marginColorClass(cardProfit)}>
-                    {cardProfit >= 0 ? "+" : ""}
-                    {formatChaos(cardProfit)}c all-time
+                  <span>
+                    <span className={marginColorClass(cardProfit)}>
+                      {cardProfit >= 0 ? "+" : ""}
+                      {formatChaos(cardProfit)}c
+                    </span>{" "}
+                    all-time
+                    {totalGoldCost(cardSessions) > 0 && `, ${totalGoldCost(cardSessions).toLocaleString()} gold spent`}
                   </span>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[480px] border-collapse text-xs">
+                  <table className="w-full min-w-[560px] border-collapse text-xs">
                     <thead>
                       <tr className="border-b border-[var(--border)] text-left text-[var(--muted)]">
                         <th className="px-2 py-1 font-medium">Logged</th>
                         <th className="px-2 py-1 font-medium">Stacks</th>
                         <th className="px-2 py-1 font-medium">Cost</th>
+                        <th className="px-2 py-1 font-medium">Gold</th>
                         <th className="px-2 py-1 font-medium">Value</th>
                         <th className="px-2 py-1 font-medium">Profit</th>
                         <th className="px-2 py-1 font-medium"></th>
@@ -449,6 +458,7 @@ function WeightedCardTableForLeague({
                     <tbody>
                       {cardSessions.map((session) => {
                         const cost = sessionCost(session);
+                        const goldCost = sessionGoldCost(session);
                         const value = sessionValue(session);
                         const profit = sessionProfit(session);
                         return (
@@ -456,6 +466,7 @@ function WeightedCardTableForLeague({
                             <td className="px-2 py-1">{new Date(session.timestamp).toLocaleString()}</td>
                             <td className="px-2 py-1">{sessionStacksProcessed(session)}</td>
                             <td className="px-2 py-1">{formatChaos(cost)}c</td>
+                            <td className="px-2 py-1">{goldCost.toLocaleString()}</td>
                             <td className="px-2 py-1">{formatChaos(value)}c</td>
                             <td className={`px-2 py-1 ${marginColorClass(profit)}`}>
                               {profit >= 0 ? "+" : ""}
@@ -501,6 +512,7 @@ function WeightedCardTableForLeague({
               cardName={row.cardName}
               stackSize={row.entry.stackSize}
               defaultBuyPrice={row.buy}
+              defaultGoldCost={goldCostLookupFor(technique.goldCostSource)?.(row.cardName) ?? 0}
               outcomes={row.outcomeRows.map((o) => ({
                 rewardName: o.rewardName,
                 rewardQuantity: o.rewardQuantity,
