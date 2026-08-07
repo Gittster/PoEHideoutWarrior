@@ -81,14 +81,26 @@ export function getDivinationCardGoldCost(cardName: string): number | undefined 
   return DIVINATION_CARD_GOLD_COSTS[cardName];
 }
 
+// Scarab gold cost, per single scarab bought. Empty to start - deliberately
+// left out of the flat CURRENCY_GOLD_COSTS table above since scarabs have no
+// single rarity-based rate, same reasoning as essences/fossils/oils. Fill
+// this in from the Scarab Reference page's CSV export as values are
+// confirmed in-game.
+export const SCARAB_GOLD_COSTS: Record<string, number> = {};
+
+export function getScarabGoldCost(scarabName: string): number | undefined {
+  return SCARAB_GOLD_COSTS[scarabName];
+}
+
 // Resolves a technique's goldCostSource tag (see techniques.ts) to the
 // actual lookup function. Takes the tag rather than the technique object so
 // this can live in the same module as the cost tables without techniques.ts
 // and goldCosts.ts importing each other.
 export function goldCostLookupFor(
-  goldCostSource: "currency" | "divinationCard" | undefined,
+  goldCostSource: "currency" | "divinationCard" | "scarab" | undefined,
 ): ((itemName: string) => number | undefined) | undefined {
   if (goldCostSource === "currency") return getCurrencyGoldCost;
   if (goldCostSource === "divinationCard") return getDivinationCardGoldCost;
+  if (goldCostSource === "scarab") return getScarabGoldCost;
   return undefined;
 }

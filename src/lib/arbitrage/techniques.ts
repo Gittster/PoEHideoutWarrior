@@ -45,7 +45,7 @@ export interface ArbitrageTechnique {
    * margin - an item missing from the table means its gold cost isn't
    * mapped yet, not that it's free.
    */
-  goldCostSource?: "currency" | "divinationCard";
+  goldCostSource?: "currency" | "divinationCard" | "scarab";
   /**
    * Optional: for techniques modeled as "buy a bulk stack of the row's own
    * item, spend a fixed extra ingredient at a Harvest-bench-style crafting
@@ -220,6 +220,7 @@ export const ARBITRAGE_TECHNIQUES: ArbitrageTechnique[] = [
     defaultThresholdPercent: 15,
     buyLabel: "Your bulk cost per scarab (chaos)",
     sellLabel: "Your resale price per scarab (chaos)",
+    goldCostSource: "scarab",
   },
 ];
 

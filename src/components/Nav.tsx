@@ -22,6 +22,9 @@ export function Nav() {
           <Link href="/reference/divination-cards" className="hover:text-[var(--foreground)]">
             Card Reference
           </Link>
+          <Link href="/reference/scarabs" className="hover:text-[var(--foreground)]">
+            Scarab Reference
+          </Link>
           <Link
             href="/config"
             className="rounded-full border border-[var(--border)] bg-[var(--surface-alt)] px-3 py-1 hover:border-[var(--accent)] hover:text-[var(--foreground)]"

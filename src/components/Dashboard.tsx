@@ -199,8 +199,8 @@ function DashboardForLeague({ league }: { league: string }) {
         <h2 className="mb-2 text-sm font-semibold text-[var(--accent)]">Your favorites</h2>
         {favoriteRows.length === 0 ? (
           <p className="text-sm text-[var(--muted)]">
-            No favorites yet - star an item on any Arbitrage page or the Card Reference page to pin
-            it here.
+            No favorites yet - star an item on any Arbitrage page or the Card/Scarab Reference
+            pages to pin it here.
           </p>
         ) : (
           <DashboardTable rows={favoriteRows} favorites={favorites} onToggleFavorite={toggleFavorite} />
