@@ -39,14 +39,16 @@ export function CardSessionModal({
   const [buyPricePerCard, setBuyPricePerCard] = useState(defaultBuyPrice);
   const [goldCostPerCard, setGoldCostPerCard] = useState(defaultGoldCost);
   const [rows, setRows] = useState<OutcomeInput[]>(() =>
-    outcomes.map((o) => ({
-      rewardName: o.rewardName,
-      rewardQuantity: o.rewardQuantity,
-      timesPulled: 0,
-      // Snapshot of the live rate at log time - editable below in case what
-      // you actually bought/sold at differs from the current market.
-      valuePerOccurrence: o.price !== undefined ? o.price * o.rewardQuantity : 0,
-    })),
+    [...outcomes]
+      .sort((a, b) => a.rewardName.localeCompare(b.rewardName))
+      .map((o) => ({
+        rewardName: o.rewardName,
+        rewardQuantity: o.rewardQuantity,
+        timesPulled: 0,
+        // Snapshot of the live rate at log time - editable below in case what
+        // you actually bought/sold at differs from the current market.
+        valuePerOccurrence: o.price !== undefined ? o.price * o.rewardQuantity : 0,
+      })),
   );
 
   useEffect(() => {

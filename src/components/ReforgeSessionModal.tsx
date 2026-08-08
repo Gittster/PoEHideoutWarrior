@@ -37,11 +37,13 @@ export function ReforgeSessionModal({
   const [ingredientCostPerReforge, setIngredientCostPerReforge] = useState(defaultIngredientCost);
   const [quantity, setQuantity] = useState(defaultQuantity);
   const [rows, setRows] = useState<OutcomeInput[]>(() =>
-    outcomes.map((o) => ({
-      itemName: o.itemName,
-      timesPulled: 0,
-      pricePerUnit: o.price ?? 0,
-    })),
+    [...outcomes]
+      .sort((a, b) => a.itemName.localeCompare(b.itemName))
+      .map((o) => ({
+        itemName: o.itemName,
+        timesPulled: 0,
+        pricePerUnit: o.price ?? 0,
+      })),
   );
 
   useEffect(() => {
