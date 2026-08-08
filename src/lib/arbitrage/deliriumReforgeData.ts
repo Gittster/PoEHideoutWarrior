@@ -1,4 +1,4 @@
-import { readLocalStorage, writeLocalStorage } from "@/lib/storage";
+import { readLocalStorage, removeLocalStorage, scanLocalStorageKeys, writeLocalStorage } from "@/lib/storage";
 
 // Per-orb "your cost" + "how many are you reforging" overrides. Kept only
 // for the Dashboard's per-item margin recompute (it shows every Delirium
@@ -134,4 +134,45 @@ export function reforgeSessionProfit(session: ReforgeSession): number {
 
 export function totalReforgeProfit(sessions: ReforgeSession[]): number {
   return sessions.reduce((sum, s) => sum + reforgeSessionProfit(s), 0);
+}
+
+const LEGACY_REFORGE_LOG_PREFIX = "phw:reforgelog:v1:";
+
+// Recovers pull counts logged before sessions existed - the old flat
+// "Log this result" tally, one key per (league, technique). The switch to
+// sessions abandoned this key format outright; this migration synthesizes
+// one session from each old tally so the odds/EV math already built up
+// isn't silently lost. Historical cost/value can't be recovered (the old
+// tally never recorded rates, only pull counts), so the migrated session
+// carries 0 for those - only the counts (the part that actually took real
+// logging effort) carry over.
+export function migrateLegacyReforgeLogs(): void {
+  for (const oldKey of scanLocalStorageKeys(LEGACY_REFORGE_LOG_PREFIX)) {
+    const parts = oldKey.slice(LEGACY_REFORGE_LOG_PREFIX.length).split(":");
+    if (parts.length !== 2) continue; // unexpected shape - leave it rather than guess
+    const [league, slug] = parts;
+
+    if (loadReforgeSessions(league, slug).length > 0) {
+      // Real session data already exists - don't clobber it with a
+      // migration guess. Leave the old key for manual review.
+      continue;
+    }
+
+    const oldCounts = readLocalStorage<ReforgeLogCounts>(oldKey, {});
+    const entries = Object.entries(oldCounts).filter(([, count]) => count > 0);
+    if (entries.length === 0) {
+      removeLocalStorage(oldKey);
+      continue;
+    }
+
+    appendReforgeSession(league, slug, {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      buyPricePerOrb: 0,
+      ingredientCostPerReforge: 0,
+      quantity: 1,
+      outcomes: entries.map(([itemName, timesPulled]) => ({ itemName, timesPulled, pricePerUnit: 0 })),
+    });
+    removeLocalStorage(oldKey);
+  }
 }

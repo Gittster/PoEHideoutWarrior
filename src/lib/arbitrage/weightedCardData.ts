@@ -1,4 +1,5 @@
-import { readLocalStorage, writeLocalStorage } from "@/lib/storage";
+import { readLocalStorage, removeLocalStorage, scanLocalStorageKeys, writeLocalStorage } from "@/lib/storage";
+import { WEIGHTED_CARD_REWARDS } from "@/lib/arbitrage/weightedCardRewards";
 
 // Per-card "your cost" override - just a buy price (no sell override in v1;
 // outcome prices always come from live poe.ninja data since there's no
@@ -115,4 +116,50 @@ export function totalProfit(sessions: CardSession[]): number {
 
 export function totalGoldCost(sessions: CardSession[]): number {
   return sessions.reduce((sum, s) => sum + sessionGoldCost(s), 0);
+}
+
+const LEGACY_CARD_LOG_PREFIX = "phw:cardlog:v1:";
+
+// Recovers pull counts logged before sessions existed - the old flat
+// "Log this result" tally, one key per (league, technique, card). The
+// switch to sessions abandoned this key format outright; this migration
+// synthesizes one session per card from each old tally so that odds/EV
+// math already built up isn't silently lost. Historical cost/value can't be
+// recovered (the old tally never recorded rates, only pull counts), so
+// migrated sessions carry 0 for those - only the counts (the part that
+// actually took real logging effort) carry over.
+export function migrateLegacyCardLogs(): void {
+  for (const oldKey of scanLocalStorageKeys(LEGACY_CARD_LOG_PREFIX)) {
+    const parts = oldKey.slice(LEGACY_CARD_LOG_PREFIX.length).split(":");
+    if (parts.length !== 3) continue; // unexpected shape - leave it rather than guess
+    const [league, slug, cardName] = parts;
+
+    if (loadSessions(league, slug).some((s) => s.cardName === cardName)) {
+      // Real session data already exists for this card - don't clobber it
+      // with a migration guess. Leave the old key for manual review.
+      continue;
+    }
+
+    const oldCounts = readLocalStorage<CardLogCounts>(oldKey, {});
+    const entries = Object.entries(oldCounts).filter(([, count]) => count > 0);
+    if (entries.length === 0) {
+      removeLocalStorage(oldKey);
+      continue;
+    }
+
+    appendSession(league, slug, {
+      id: crypto.randomUUID(),
+      cardName,
+      timestamp: Date.now(),
+      buyPricePerCard: 0,
+      goldCostPerCard: 0,
+      stackSize: WEIGHTED_CARD_REWARDS[cardName]?.stackSize ?? 1,
+      outcomes: entries.map(([rewardName, timesPulled]) => ({
+        rewardName,
+        timesPulled,
+        valuePerOccurrence: 0,
+      })),
+    });
+    removeLocalStorage(oldKey);
+  }
 }

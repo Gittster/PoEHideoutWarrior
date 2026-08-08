@@ -1,12 +1,13 @@
 "use client";
 
-import { createContext, useContext, useSyncExternalStore, ReactNode } from "react";
+import { createContext, useContext, useEffect, useSyncExternalStore, ReactNode } from "react";
 import {
   getLeagueSnapshot,
   getServerLeagueSnapshot,
   setLeagueValue,
   subscribeLeague,
 } from "@/lib/league-store";
+import { runStorageMigrations } from "@/lib/storageMigrations";
 
 interface LeagueContextValue {
   league: string;
@@ -17,6 +18,10 @@ const LeagueContext = createContext<LeagueContextValue | null>(null);
 
 export function LeagueProvider({ children }: { children: ReactNode }) {
   const league = useSyncExternalStore(subscribeLeague, getLeagueSnapshot, getServerLeagueSnapshot);
+
+  useEffect(() => {
+    runStorageMigrations();
+  }, []);
 
   return (
     <LeagueContext.Provider value={{ league, setLeague: setLeagueValue }}>
