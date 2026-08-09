@@ -70,23 +70,24 @@ export const BOSS_ENCOUNTERS: BossEncounter[] = [
       { rewardName: "The Escape", category: "UniqueJewel", rewardQuantity: 1 },
       // The 18 base ("original") Breach uniques the guaranteed Foulborn
       // drop can roll - see the risk note above on how this is priced.
-      // Equip-slot guesses cross-checked against this item's alternate
-      // form where that alternate is already mapped elsewhere in this
-      // codebase (e.g. Xoph's Heart -> Xoph's Blood's UniqueAccessory in
-      // divinationCardRewards.ts); otherwise best-effort/unverified.
-      { rewardName: "Xoph's Inception", category: "UniqueJewel", rewardQuantity: 1 },
+      // Categories cross-checked against a live poe.ninja UniqueWeapon
+      // dump where possible (Xoph's Inception/Tulborn/Hand of Thought and
+      // Motion/Uul-Netol's Kiss/Severed in Sleep all confirmed weapons
+      // there, correcting earlier armour/accessory/jewel guesses);
+      // everything else remains best-effort/unverified.
+      { rewardName: "Xoph's Inception", category: "UniqueWeapon", rewardQuantity: 1 },
       { rewardName: "The Formless Flame", category: "UniqueJewel", rewardQuantity: 1 },
       { rewardName: "Xoph's Heart", category: "UniqueAccessory", rewardQuantity: 1 },
-      { rewardName: "Tulborn", category: "UniqueAccessory", rewardQuantity: 1 },
+      { rewardName: "Tulborn", category: "UniqueWeapon", rewardQuantity: 1 },
       { rewardName: "The Snowblind Grace", category: "UniqueArmour", rewardQuantity: 1 },
       { rewardName: "The Halcyon", category: "UniqueAccessory", rewardQuantity: 1 },
-      { rewardName: "Hand of Thought and Motion", category: "UniqueArmour", rewardQuantity: 1 },
+      { rewardName: "Hand of Thought and Motion", category: "UniqueWeapon", rewardQuantity: 1 },
       { rewardName: "Esh's Mirror", category: "UniqueArmour", rewardQuantity: 1 },
       { rewardName: "Voice of the Storm", category: "UniqueAccessory", rewardQuantity: 1 },
-      { rewardName: "Uul-Netol's Kiss", category: "UniqueArmour", rewardQuantity: 1 },
+      { rewardName: "Uul-Netol's Kiss", category: "UniqueWeapon", rewardQuantity: 1 },
       { rewardName: "The Infinite Pursuit", category: "UniqueArmour", rewardQuantity: 1 },
       { rewardName: "The Anticipation", category: "UniqueArmour", rewardQuantity: 1 },
-      { rewardName: "Severed in Sleep", category: "UniqueArmour", rewardQuantity: 1 },
+      { rewardName: "Severed in Sleep", category: "UniqueWeapon", rewardQuantity: 1 },
       { rewardName: "Skin of the Loyal", category: "UniqueArmour", rewardQuantity: 1 },
       { rewardName: "The Red Dream", category: "UniqueJewel", rewardQuantity: 1 },
       { rewardName: "The Green Dream", category: "UniqueJewel", rewardQuantity: 1 },

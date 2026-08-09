@@ -142,7 +142,7 @@ export const DIVINATION_CARD_REWARDS: Record<string, DivinationCardReward> = {
   "The Craving": { stackSize: 4, rewardQuantity: 1, rewardName: "Unending Hunger", category: "UniqueWeapon" },
   "The Cursed King": { stackSize: 8, rewardQuantity: 1, rewardName: "Rigwald's Curse", category: "UniqueAccessory" },
   "The Damned": { stackSize: 6, rewardQuantity: 1, rewardName: "Soul Ripper", category: "UniqueFlask" },
-  "The Darkest Dream": { stackSize: 6, rewardQuantity: 1, rewardName: "Severed in Sleep", category: "UniqueArmour" },
+  "The Darkest Dream": { stackSize: 6, rewardQuantity: 1, rewardName: "Severed in Sleep", category: "UniqueWeapon" },
   "The Deceiver": { stackSize: 4, rewardQuantity: 1, rewardName: "Belt of the Deceiver", category: "UniqueAccessory" },
   "The Deep Ones": { stackSize: 5, rewardQuantity: 1, rewardName: "Tidebreaker", category: "UniqueWeapon" },
   "The Demon": { stackSize: 10, rewardQuantity: 1, rewardName: "Headhunter", category: "UniqueAccessory" },
