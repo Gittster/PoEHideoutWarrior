@@ -47,7 +47,7 @@ export const BOSS_ENCOUNTERS: BossEncounter[] = [
     risks: [
       "Reward -> poe.ninja category mapping below is a best-effort guess (unique item slots, and which category things like Hiveblood/Foulgrasp Support/Something Dark live under) for very recently-introduced content - if a whole row shows \"unavailable\", the category guess for that row is probably wrong, not that poe.ninja has no data for it.",
       "Hiveblood's reward quantity is fixed here at 1900 (midpoint of the wiki's stated 1500-2300 range) - edit the value in the session log modal to what you actually received if you want a precise session.",
-      "\"Random 1-mod Foulborn original Breach unique item\" (a guaranteed drop per the wiki) isn't in the pool below - there's no single item name/category to price it under. Its value is missing from every EV number here.",
+      "The guaranteed \"Random 1-mod Foulborn original Breach unique item\" drop is modeled below as one of the 18 base Breach uniques it can roll (Xoph's Inception through Eye of Chayula) - priced off that item's plain unique listing, since a Foulborn-specific listing isn't something this app can distinguish. If poe.ninja actually prices Foulborn variants separately, these numbers are an approximation, not the real value.",
       "The odds shown are only as good as your own logged sample size - with few fights logged, an outcome you haven't received yet still shows 0% even though it's possible.",
     ],
     fragmentCategory: "Fragment",
@@ -68,6 +68,30 @@ export const BOSS_ENCOUNTERS: BossEncounter[] = [
       { rewardName: "Hiveborn Support", category: "SkillGem", rewardQuantity: 1 },
       { rewardName: "Something Dark", category: "UniqueJewel", rewardQuantity: 1 },
       { rewardName: "The Escape", category: "UniqueJewel", rewardQuantity: 1 },
+      // The 18 base ("original") Breach uniques the guaranteed Foulborn
+      // drop can roll - see the risk note above on how this is priced.
+      // Equip-slot guesses cross-checked against this item's alternate
+      // form where that alternate is already mapped elsewhere in this
+      // codebase (e.g. Xoph's Heart -> Xoph's Blood's UniqueAccessory in
+      // divinationCardRewards.ts); otherwise best-effort/unverified.
+      { rewardName: "Xoph's Inception", category: "UniqueJewel", rewardQuantity: 1 },
+      { rewardName: "The Formless Flame", category: "UniqueJewel", rewardQuantity: 1 },
+      { rewardName: "Xoph's Heart", category: "UniqueAccessory", rewardQuantity: 1 },
+      { rewardName: "Tulborn", category: "UniqueAccessory", rewardQuantity: 1 },
+      { rewardName: "The Snowblind Grace", category: "UniqueArmour", rewardQuantity: 1 },
+      { rewardName: "The Halcyon", category: "UniqueAccessory", rewardQuantity: 1 },
+      { rewardName: "Hand of Thought and Motion", category: "UniqueArmour", rewardQuantity: 1 },
+      { rewardName: "Esh's Mirror", category: "UniqueArmour", rewardQuantity: 1 },
+      { rewardName: "Voice of the Storm", category: "UniqueAccessory", rewardQuantity: 1 },
+      { rewardName: "Uul-Netol's Kiss", category: "UniqueArmour", rewardQuantity: 1 },
+      { rewardName: "The Infinite Pursuit", category: "UniqueArmour", rewardQuantity: 1 },
+      { rewardName: "The Anticipation", category: "UniqueArmour", rewardQuantity: 1 },
+      { rewardName: "Severed in Sleep", category: "UniqueArmour", rewardQuantity: 1 },
+      { rewardName: "Skin of the Loyal", category: "UniqueArmour", rewardQuantity: 1 },
+      { rewardName: "The Red Dream", category: "UniqueJewel", rewardQuantity: 1 },
+      { rewardName: "The Green Dream", category: "UniqueJewel", rewardQuantity: 1 },
+      { rewardName: "The Blue Dream", category: "UniqueJewel", rewardQuantity: 1 },
+      { rewardName: "Eye of Chayula", category: "UniqueAccessory", rewardQuantity: 1 },
     ],
   },
 ];
