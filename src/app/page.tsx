@@ -28,6 +28,11 @@ export default function Home() {
           href="/arbitrage"
         />
         <SectionCard
+          title="Bossing"
+          description="Boss encounters priced by fragment cost vs. drop value, logged fight-by-fight like the variable-reward cards."
+          href="/bossing"
+        />
+        <SectionCard
           title="Crafting"
           description="Turning cheap bases and currency into items worth more than the sum of their inputs."
           comingSoon

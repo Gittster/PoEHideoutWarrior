@@ -1,0 +1,77 @@
+// Boss encounters, priced by "cost of the fragments/keys needed to open the
+// fight" vs "expected value of what it drops" - the same shape as the
+// Arbitrage section's techniques, but modeled with BossEncounterTable's
+// independent-per-item session log instead of ArbitrageTechnique's
+// rewardConfig/weightedRewardConfig (a boss fight can drop several of these
+// in the same kill, unlike a divination card stack turning into exactly one
+// outcome, so "probability" here is timesReceived / fightsRun per item, not
+// a shared pool that sums to 100% across outcomes).
+export interface BossReward {
+  rewardName: string;
+  /** poe.ninja category this reward's own price is fetched from. */
+  category: string;
+  /** Units received per fight this outcome occurs in - 1 for a single unique/gem drop, a representative average for a variable-quantity currency-like drop. */
+  rewardQuantity: number;
+}
+
+export interface BossEncounter {
+  slug: string;
+  title: string;
+  shortDescription: string;
+  overview: string[];
+  mechanics: string[];
+  risks: string[];
+  /** poe.ninja category the entry fragment's own price is fetched from. */
+  fragmentCategory: string;
+  fragmentName: string;
+  /** Fragments consumed per fight (not per kill of each individual boss, if the encounter fights several at once). */
+  fragmentQuantity: number;
+  possibleRewards: BossReward[];
+}
+
+export const BOSS_ENCOUNTERS: BossEncounter[] = [
+  {
+    slug: "it-that-was-esh-and-tul",
+    title: "It That Was Esh & It That Was Tul",
+    shortDescription:
+      "Open a Hive Colony with a Hivebrain Gland and fight both Breachlords at once for a shot at a Breach unique or a Foulborn item.",
+    overview: [
+      "A Hivebrain Gland (map fragment) opens the Hive Colony, where It That Was Esh and It That Was Tul are fought together as one encounter - they alternate attacking twice until 40% combined health, then share a single health bar for the rest of the fight. Killing both is one \"fight\" for pricing purposes: one gland in, one shared loot drop out.",
+      "The drop table mixes guaranteed drops (Hiveblood every kill, in a wide 1500-2300 quantity range) with several independent unique/gem/jewel chances - you can walk away with nothing but Hiveblood, or several uniques at once, since these aren't mutually exclusive picks from one pool the way a divination card's reward is. Odds here come entirely from your own logged fights, same reasoning as the variable-reward cards page.",
+    ],
+    mechanics: [
+      "Buy Hivebrain Glands (or farm Hive Fortress encounters / Vruun, Marshal of Xesht for them) and log what each fight actually drops.",
+      "Expected value per fight = sum over each possible drop of (times you've received it / fights logged) x its reward quantity x its live price.",
+      "Defeating both bosses also spawns the Otherworldy Tree (Breachlord Bloodline ascendancy access) - not a priceable drop, but part of why this fight gets run even at a raw chaos loss.",
+    ],
+    risks: [
+      "Reward -> poe.ninja category mapping below is a best-effort guess (unique item slots, and which category things like Hiveblood/Foulgrasp Support/Something Dark live under) for very recently-introduced content - if a whole row shows \"unavailable\", the category guess for that row is probably wrong, not that poe.ninja has no data for it.",
+      "Hiveblood's reward quantity is fixed here at 1900 (midpoint of the wiki's stated 1500-2300 range) - edit the value in the session log modal to what you actually received if you want a precise session.",
+      "\"Random 1-mod Foulborn original Breach unique item\" (a guaranteed drop per the wiki) isn't in the pool below - there's no single item name/category to price it under. Its value is missing from every EV number here.",
+      "The odds shown are only as good as your own logged sample size - with few fights logged, an outcome you haven't received yet still shows 0% even though it's possible.",
+    ],
+    fragmentCategory: "Fragment",
+    fragmentName: "Hivebrain Gland",
+    fragmentQuantity: 1,
+    possibleRewards: [
+      { rewardName: "The Will of Esh", category: "UniqueAccessory", rewardQuantity: 1 },
+      { rewardName: "The Will of Tul", category: "UniqueAccessory", rewardQuantity: 1 },
+      { rewardName: "The Will of Xoph", category: "UniqueAccessory", rewardQuantity: 1 },
+      { rewardName: "The Will of Uul-Netol", category: "UniqueAccessory", rewardQuantity: 1 },
+      { rewardName: "The Sundered Will", category: "UniqueAccessory", rewardQuantity: 1 },
+      { rewardName: "Hand of the Lords", category: "UniqueArmour", rewardQuantity: 1 },
+      { rewardName: "The Grey Wind", category: "UniqueWeapon", rewardQuantity: 1 },
+      { rewardName: "Uul-Netol's Vow", category: "UniqueAccessory", rewardQuantity: 1 },
+      { rewardName: "Flesh of Xesht", category: "UniqueAccessory", rewardQuantity: 1 },
+      { rewardName: "Hiveblood", category: "Currency", rewardQuantity: 1900 },
+      { rewardName: "Foulgrasp Support", category: "SkillGem", rewardQuantity: 1 },
+      { rewardName: "Hiveborn Support", category: "SkillGem", rewardQuantity: 1 },
+      { rewardName: "Something Dark", category: "UniqueJewel", rewardQuantity: 1 },
+      { rewardName: "The Escape", category: "UniqueJewel", rewardQuantity: 1 },
+    ],
+  },
+];
+
+export function getBossEncounter(slug: string): BossEncounter | undefined {
+  return BOSS_ENCOUNTERS.find((e) => e.slug === slug);
+}
