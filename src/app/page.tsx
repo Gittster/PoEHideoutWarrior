@@ -34,8 +34,8 @@ export default function Home() {
         />
         <SectionCard
           title="Crafting"
-          description="Turning cheap bases and currency into items worth more than the sum of their inputs."
-          comingSoon
+          description="Step-by-step crafting guides - paste your item's copied text and get pointed to where you are in the process."
+          href="/crafting"
         />
         <SectionCard
           title="Flipping"

@@ -22,6 +22,9 @@ export function Nav() {
           <Link href="/bossing" className="hover:text-[var(--foreground)]">
             Bossing
           </Link>
+          <Link href="/crafting" className="hover:text-[var(--foreground)]">
+            Crafting
+          </Link>
           <Link href="/reference/divination-cards" className="hover:text-[var(--foreground)]">
             Card Reference
           </Link>
