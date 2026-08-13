@@ -22,7 +22,13 @@ function buildTradeSearchUrl(league: string, minQuality: number): string {
       stats: [{ type: "and", filters: [] }],
       filters: {
         type_filters: { filters: { rarity: { option: "normal" } } },
-        misc_filters: { filters: { quality: { min: minQuality } } },
+        misc_filters: {
+          filters: {
+            quality: { min: minQuality },
+            ilvl: { min: 86 },
+            corrupted: { option: "false" },
+          },
+        },
       },
     },
     sort: { price: "asc" },
