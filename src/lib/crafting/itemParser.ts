@@ -3,11 +3,26 @@
 // unrecognised lines are kept in modLines rather than dropped, and fields
 // that can't be found are left undefined rather than guessed.
 //
-// Advanced Mod Descriptions (Options -> UI) adds a "{ Prefix Modifier "X"
-// (Tier: N) ... }" annotation line above each mod - we strip those out of
-// modLines (their exact bracket formatting isn't verified against a real
-// paste yet) and match on the plain stat text instead, which is stable
-// regardless of that setting.
+// Advanced Mod Descriptions (Options -> UI, confirmed enabled for this
+// guide's author) adds a bracket line above each mod, confirmed against a
+// real paste in two forms:
+//   { Prefix Modifier "Crusader's" (Tier: 1) — Damage, Physical }
+//   { Master Crafted Prefix Modifier "Upgraded" (Rank: 1) — Life }
+// One bracket can describe more than one following stat line (a two-line
+// Elevated prefix grants both its lines under a single bracket). Parsed
+// into `mods` (kind/affix/tier, when a bracket is present) in addition to
+// the flat `modLines` (every stat line regardless of whether it had a
+// bracket) so callers that only care about presence/text can ignore mods
+// entirely, and callers that need prefix/suffix counts don't have to.
+
+export interface ParsedMod {
+  /** The stat line(s) this bracket describes - 2 for a two-line Elevated-style prefix, 1 otherwise. */
+  lines: string[];
+  kind: "Prefix" | "Suffix";
+  masterCrafted: boolean;
+  affixName: string;
+  tier: number;
+}
 
 export interface ParsedItem {
   raw: string;
@@ -23,10 +38,13 @@ export interface ParsedItem {
   influences: string[];
   /** Every stat line found from the Item Level block onward (implicit + explicit combined - see note above on why they aren't split out). */
   modLines: string[];
+  /** Only the mods whose Advanced Mod Description bracket was present and parsed - empty if that setting was off for this paste. */
+  mods: ParsedMod[];
 }
 
 const RARITIES = ["Normal", "Magic", "Rare", "Unique"] as const;
 const INFLUENCE_LINE = /^(Shaper|Elder|Crusader|Redeemer|Hunter|Warlord) Item$/;
+const MOD_BRACKET = /^\{\s*(Master Crafted\s+)?(Prefix|Suffix)\s+Modifier\s+"([^"]+)"\s*\((?:Tier|Rank):\s*(\d+)\)/;
 
 function isInfluenceOnlyBlock(block: string): boolean {
   const lines = block.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -43,7 +61,14 @@ export function parseItemText(text: string): ParsedItem | null {
     .filter(Boolean);
   if (blocks.length === 0) return null;
 
-  const item: ParsedItem = { raw: trimmed, corrupted: false, mirrored: false, influences: [], modLines: [] };
+  const item: ParsedItem = {
+    raw: trimmed,
+    corrupted: false,
+    mirrored: false,
+    influences: [],
+    modLines: [],
+    mods: [],
+  };
   let itemLevelBlockIndex = -1;
 
   blocks.forEach((block, i) => {
@@ -79,16 +104,39 @@ export function parseItemText(text: string): ParsedItem | null {
   if (!item.itemClass && !item.rarity && item.itemLevel === undefined) return null;
 
   if (itemLevelBlockIndex >= 0) {
+    let pendingMod: Omit<ParsedMod, "lines"> | null = null;
+    let pendingLines: string[] = [];
+
+    const flush = () => {
+      if (pendingMod && pendingLines.length > 0) {
+        item.mods.push({ ...pendingMod, lines: pendingLines });
+      }
+      pendingMod = null;
+      pendingLines = [];
+    };
+
     for (let i = itemLevelBlockIndex + 1; i < blocks.length; i++) {
       const block = blocks[i];
       if (/^(Corrupted|Mirrored|Unidentified)$/.test(block) || /^Note:/.test(block) || isInfluenceOnlyBlock(block)) {
         continue;
       }
-      const lines = block
-        .split("\n")
-        .map((l) => l.trim())
-        .filter((l) => l && !/^\{.*\}$/.test(l));
-      item.modLines.push(...lines);
+      const lines = block.split("\n").map((l) => l.trim()).filter(Boolean);
+      for (const line of lines) {
+        const bracketMatch = line.match(MOD_BRACKET);
+        if (bracketMatch) {
+          flush();
+          pendingMod = {
+            masterCrafted: Boolean(bracketMatch[1]),
+            kind: bracketMatch[2] as "Prefix" | "Suffix",
+            affixName: bracketMatch[3],
+            tier: Number(bracketMatch[4]),
+          };
+        } else {
+          item.modLines.push(line);
+          pendingLines.push(line);
+        }
+      }
+      flush();
     }
   }
 
@@ -101,4 +149,12 @@ export function hasModLine(item: ParsedItem, exact: string): boolean {
 
 export function hasModLineContaining(item: ParsedItem, substring: string): boolean {
   return item.modLines.some((l) => l.includes(substring));
+}
+
+export function prefixCount(item: ParsedItem): number {
+  return item.mods.filter((m) => m.kind === "Prefix").length;
+}
+
+export function suffixCount(item: ParsedItem): number {
+  return item.mods.filter((m) => m.kind === "Suffix").length;
 }
