@@ -15,6 +15,8 @@ export interface ParsedItem {
   rarity?: "Normal" | "Magic" | "Rare" | "Unique";
   quality?: number;
   itemLevel?: number;
+  /** From the "Memory Strands: N" property line. */
+  memoryStrands?: number;
   corrupted: boolean;
   mirrored: boolean;
   /** e.g. ["Crusader"] for a Crusader-influenced item, ["Shaper", "Elder"] for double-influenced. */
@@ -55,6 +57,9 @@ export function parseItemText(text: string): ParsedItem | null {
 
     const qualityMatch = block.match(/^Quality:\s*\+?(\d+)%/m);
     if (qualityMatch) item.quality = Number(qualityMatch[1]);
+
+    const strandsMatch = block.match(/^Memory Strands:\s*(\d+)/m);
+    if (strandsMatch) item.memoryStrands = Number(strandsMatch[1]);
 
     const ilvlMatch = block.match(/^Item Level:\s*(\d+)/m);
     if (ilvlMatch) {

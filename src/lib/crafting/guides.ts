@@ -43,6 +43,14 @@ function hasT1Explode(item: ParsedItem) {
 function hasT0Explode(item: ParsedItem) {
   return hasModLine(item, T0_EXPLODE) && hasModLineContaining(item, T0_EXPLODE_AOE_SUBSTRING);
 }
+function hasCrusaderInfluence(item: ParsedItem) {
+  return item.influences.includes("Crusader");
+}
+
+// Bypass threshold from the guide's own notes: Orb of Remembrance is
+// recommended up to 80+ Memory Strands, but it's fine to move on once
+// you're at 70+.
+const MEMORY_STRANDS_BYPASS = 70;
 
 export const CRAFT_GUIDES: CraftGuide[] = [
   {
@@ -55,7 +63,7 @@ export const CRAFT_GUIDES: CraftGuide[] = [
       "The T1 vs T0 (Elevated) Explode prefix is detected by its exact stat text, confirmed against Path of Building's current mod data: T1 reads \"Enemies you Kill Explode, dealing 3% of their Life as Physical Damage\"; the Elevated version reads \"...dealing 5%...\" and always comes paired with an \"increased Area of Effect\" line, since Elevated Crusader's is a two-line prefix.",
     ],
     risks: [
-      "This matcher only reads what's in the pasted item text - it cannot see Memory Thread count, Beastcrafting Imprint/Lock state, or which specific mod your Orb of Dominance roll picked. Steps needing that are marked \"manual\" below and won't be auto-detected.",
+      "This matcher only reads what's in the pasted item text - it cannot see Beastcrafting Imprint/Lock state or which specific mod your Orb of Dominance roll picked (it can read Memory Strands directly, from the item's \"Memory Strands: N\" property line). Steps needing that are marked \"manual\" below and won't be auto-detected.",
       "Prefix/suffix counts beyond the Explode mod are approximated from total mod-line count, not a full affix lookup - if Advanced Mod Descriptions is on (confirmed enabled), pasting real item text once game access is back will let this be tightened to read the actual Prefix/Suffix tier annotations instead of approximating.",
       "If a pasted item's Item Class isn't \"Body Armours\", double check you copied the right item - the guide will still try to match it, but the mod text it's looking for is specific to body armour Crusader/Shaper influence rolls.",
     ],
@@ -65,20 +73,32 @@ export const CRAFT_GUIDES: CraftGuide[] = [
         title: "Acquire the base",
         detail: "High-quality Twilight Regalia base, Normal rarity, item level 86+. Expand for trade links and acquisition options.",
         autoDetectable: true,
-        isSatisfied: (item) => item.rarity === "Normal" && (item.itemLevel ?? 0) >= 86 && (item.quality ?? 0) > 0,
+        isSatisfied: (item) =>
+          item.rarity === "Normal" &&
+          (item.itemLevel ?? 0) >= 86 &&
+          (item.quality ?? 0) > 0 &&
+          !hasCrusaderInfluence(item),
       },
       {
         n: 2,
         title: "Orb of Remembrance",
-        detail: "Apply Orb of Remembrance repeatedly until the item has 80+ Memory Threads. Recommended but optional - okay to bypass if the item ends up with fewer than 70 Memory Threads.",
-        autoDetectable: false,
+        detail: `Apply Orb of Remembrance repeatedly until the item has 80+ Memory Strands. Recommended but optional - okay to bypass if the item ends up with fewer than ${MEMORY_STRANDS_BYPASS} Memory Strands.`,
+        autoDetectable: true,
+        isSatisfied: (item) =>
+          item.rarity === "Normal" &&
+          hasCrusaderInfluence(item) &&
+          (item.memoryStrands ?? 0) < MEMORY_STRANDS_BYPASS,
       },
       {
         n: 3,
         title: "Bench craft & imprint",
-        detail: "Bench-craft a minimum-tier +maximum Life mod, then Beastcraft an Imprint with a Craicic Croaker before regaling, to protect your Memory Threads. If the regal takes more than ~5-6 tries, restore the imprint and retry. Optional, same as the Memory Thread step - bypass entirely if the item already has Memory Threads and is Rare.",
+        detail: "Bench-craft a minimum-tier +maximum Life mod, then Beastcraft an Imprint with a Craicic Croaker before regaling, to protect your Memory Strands. If the regal costs more than ~5-6 Memory Strands, restore the imprint and retry. Optional, same as the Memory Strands step - bypass entirely if the item already has Memory Strands and is Rare.",
         autoDetectable: true,
-        isSatisfied: (item) => item.rarity === "Rare" && !hasT1Explode(item) && !hasT0Explode(item),
+        isSatisfied: (item) =>
+          (item.rarity === "Normal" &&
+            hasCrusaderInfluence(item) &&
+            (item.memoryStrands ?? 0) >= MEMORY_STRANDS_BYPASS) ||
+          (item.rarity === "Rare" && !hasT1Explode(item) && !hasT0Explode(item)),
       },
       {
         n: 4,
