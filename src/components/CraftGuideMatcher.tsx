@@ -1,12 +1,25 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useLeague } from "@/lib/league-context";
 import { parseItemText } from "@/lib/crafting/itemParser";
 import { getCraftGuide, matchCurrentStep } from "@/lib/crafting/guides";
+import { TwilightRegaliaAcquisition } from "@/components/TwilightRegaliaAcquisition";
 
 export function CraftGuideMatcher({ slug }: { slug: string }) {
   const guide = getCraftGuide(slug);
+  const { league } = useLeague();
   const [pasted, setPasted] = useState("");
+  const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set());
+
+  const toggleStep = (n: number) => {
+    setExpandedSteps((prev) => {
+      const next = new Set(prev);
+      if (next.has(n)) next.delete(n);
+      else next.add(n);
+      return next;
+    });
+  };
 
   const parsed = useMemo(() => (pasted.trim() ? parseItemText(pasted) : null), [pasted]);
   const match = useMemo(() => (parsed && guide ? matchCurrentStep(guide, parsed) : null), [guide, parsed]);
@@ -74,33 +87,46 @@ export function CraftGuideMatcher({ slug }: { slug: string }) {
       <div className="flex flex-col gap-2">
         {guide.receiverSteps.map((step) => {
           const isCurrent = match?.step.n === step.n;
+          const isExpanded = expandedSteps.has(step.n);
+          const hasExtra = guide.slug === "double-elevated-necro-body" && step.n === 1;
           return (
             <div
               key={step.n}
-              className={`flex gap-3 rounded-lg border p-3 text-sm ${
+              className={`rounded-lg border p-3 text-sm ${
                 isCurrent
                   ? "border-[var(--accent)] bg-[var(--surface-alt)]"
                   : "border-[var(--border)] bg-[var(--surface)]"
               }`}
             >
-              <div
-                className={`flex h-6 w-6 flex-none items-center justify-center rounded-full text-xs font-semibold ${
-                  isCurrent ? "bg-[var(--accent)] text-[var(--surface)]" : "bg-[var(--surface-alt)] text-[var(--muted)]"
-                }`}
+              <button
+                type="button"
+                onClick={() => toggleStep(step.n)}
+                className="flex w-full items-start gap-3 text-left"
               >
-                {step.n}
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{step.title}</span>
-                  {!step.autoDetectable && (
-                    <span className="rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[10px] text-[var(--muted)]">
-                      manual
-                    </span>
-                  )}
+                <div
+                  className={`flex h-6 w-6 flex-none items-center justify-center rounded-full text-xs font-semibold ${
+                    isCurrent
+                      ? "bg-[var(--accent)] text-[var(--surface)]"
+                      : "bg-[var(--surface-alt)] text-[var(--muted)]"
+                  }`}
+                >
+                  {step.n}
                 </div>
-                <p className="mt-0.5 text-[var(--muted)]">{step.detail}</p>
-              </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{step.title}</span>
+                    {!step.autoDetectable && (
+                      <span className="rounded-full bg-[var(--surface-alt)] px-2 py-0.5 text-[10px] text-[var(--muted)]">
+                        manual
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-[var(--muted)]">{step.detail}</p>
+                </div>
+                <span className="flex-none text-[var(--muted)]">{isExpanded ? "−" : "+"}</span>
+              </button>
+
+              {isExpanded && hasExtra && <TwilightRegaliaAcquisition league={league} />}
             </div>
           );
         })}

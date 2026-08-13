@@ -63,7 +63,7 @@ export const CRAFT_GUIDES: CraftGuide[] = [
       {
         n: 1,
         title: "Acquire the base",
-        detail: "High-quality Necromantic body armour base, item level 86+.",
+        detail: "High-quality Twilight Regalia base, Normal rarity, item level 86+. Expand for trade links and acquisition options.",
         autoDetectable: true,
         isSatisfied: (item) => item.rarity === "Normal" && (item.itemLevel ?? 0) >= 86 && (item.quality ?? 0) > 0,
       },
