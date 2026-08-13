@@ -70,13 +70,13 @@ export const CRAFT_GUIDES: CraftGuide[] = [
       {
         n: 2,
         title: "Orb of Remembrance",
-        detail: "Apply Orb of Remembrance repeatedly until the item has 80+ Memory Threads.",
+        detail: "Apply Orb of Remembrance repeatedly until the item has 80+ Memory Threads. Recommended but optional - okay to bypass if the item ends up with fewer than 70 Memory Threads.",
         autoDetectable: false,
       },
       {
         n: 3,
-        title: "Bench craft to rare",
-        detail: "Bench-craft the item up to Rare.",
+        title: "Bench craft & imprint",
+        detail: "Bench-craft a minimum-tier +maximum Life mod, then Beastcraft an Imprint with a Craicic Croaker before regaling, to protect your Memory Threads. If the regal takes more than ~5-6 tries, restore the imprint and retry. Optional, same as the Memory Thread step - bypass entirely if the item already has Memory Threads and is Rare.",
         autoDetectable: true,
         isSatisfied: (item) => item.rarity === "Rare" && !hasT1Explode(item) && !hasT0Explode(item),
       },
