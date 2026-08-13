@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { fetchCategory } from "@/lib/fetchCategory";
+import { useCurrencyPrice } from "@/lib/crafting/useCurrencyPrice";
 import { formatChaos } from "@/lib/format";
 
 const QUALITY_THRESHOLDS = [24, 25, 26, 27, 28];
@@ -38,38 +37,27 @@ function buildTradeSearchUrl(league: string, minQuality: number): string {
   )}`;
 }
 
-export function TwilightRegaliaAcquisition({ league }: { league: string }) {
-  const [orbPrice, setOrbPrice] = useState<number | undefined>(undefined);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    /* eslint-disable react-hooks/set-state-in-effect */
-    setLoading(true);
-    /* eslint-enable react-hooks/set-state-in-effect */
-    fetchCategory("Currency", league)
-      .then((items) => {
-        if (cancelled) return;
-        const orb = items.find((i) => i.name === CRUSADERS_EXALTED_ORB);
-        setOrbPrice(orb?.chaosValue);
-      })
-      .catch(() => {
-        if (!cancelled) setOrbPrice(undefined);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [league]);
+export function TwilightRegaliaAcquisition({
+  league,
+  hasCrusaderInfluence,
+}: {
+  league: string;
+  /** From the pasted item, if any: true = already Crusader-influenced, false = still needs it, undefined = nothing pasted yet. */
+  hasCrusaderInfluence?: boolean;
+}) {
+  const { price: orbPrice, loading } = useCurrencyPrice(CRUSADERS_EXALTED_ORB, league);
+  const orbStillNeeded = hasCrusaderInfluence === false;
 
   return (
     <div className="mt-3 flex flex-col gap-3 border-t border-[var(--border)] pt-3 text-sm">
       <p className="text-[var(--muted)]">
         Base is a <span className="text-[var(--foreground)]">Twilight Regalia</span>, and it needs to be{" "}
         <span className="text-[var(--foreground)]">Normal</span> rarity - either buy one that&apos;s already
-        Crusader-influenced, or buy an uninfluenced one and apply a Crusader&apos;s Exalted Orb yourself.
+        Crusader-influenced, or buy an uninfluenced one and{" "}
+        <span className={orbStillNeeded ? "font-semibold text-[var(--bad)]" : undefined}>
+          apply a Crusader&apos;s Exalted Orb yourself
+        </span>
+        .
       </p>
 
       <div className="flex flex-wrap gap-2">
@@ -86,9 +74,21 @@ export function TwilightRegaliaAcquisition({ league }: { league: string }) {
         ))}
       </div>
 
-      <div className="text-xs text-[var(--muted)]">
-        {CRUSADERS_EXALTED_ORB} ({league}):{" "}
-        {loading ? "loading..." : orbPrice !== undefined ? `${formatChaos(orbPrice)}c` : "unavailable"}
+      <div
+        className={`flex items-center gap-2 text-xs ${orbStillNeeded ? "text-[var(--bad)]" : "text-[var(--muted)]"}`}
+      >
+        <span>
+          {CRUSADERS_EXALTED_ORB} ({league}):{" "}
+          {loading ? "loading..." : orbPrice !== undefined ? `${formatChaos(orbPrice)}c` : "unavailable"}
+        </span>
+        {orbStillNeeded && (
+          <span className="rounded-full border border-[var(--bad)] px-2 py-0.5 font-semibold">still needed</span>
+        )}
+        {hasCrusaderInfluence === true && (
+          <span className="rounded-full border border-[var(--good)] px-2 py-0.5 text-[var(--good)]">
+            already influenced
+          </span>
+        )}
       </div>
 
       <p className="text-xs text-[var(--muted)]">

@@ -5,6 +5,7 @@ import { useLeague } from "@/lib/league-context";
 import { parseItemText } from "@/lib/crafting/itemParser";
 import { getCraftGuide, matchCurrentStep } from "@/lib/crafting/guides";
 import { TwilightRegaliaAcquisition } from "@/components/TwilightRegaliaAcquisition";
+import { OrbOfRemembrancePrice } from "@/components/OrbOfRemembrancePrice";
 
 export function CraftGuideMatcher({ slug }: { slug: string }) {
   const guide = getCraftGuide(slug);
@@ -25,6 +26,7 @@ export function CraftGuideMatcher({ slug }: { slug: string }) {
   const match = useMemo(() => (parsed && guide ? matchCurrentStep(guide, parsed) : null), [guide, parsed]);
 
   const wrongClass = parsed?.itemClass && parsed.itemClass !== "Body Armours";
+  const hasCrusaderInfluence = parsed ? parsed.influences.includes("Crusader") : undefined;
 
   if (!guide) return null;
 
@@ -88,7 +90,7 @@ export function CraftGuideMatcher({ slug }: { slug: string }) {
         {guide.receiverSteps.map((step) => {
           const isCurrent = match?.step.n === step.n;
           const isExpanded = expandedSteps.has(step.n);
-          const hasExtra = guide.slug === "double-elevated-necro-body" && step.n === 1;
+          const isThisGuide = guide.slug === "double-elevated-necro-body";
           return (
             <div
               key={step.n}
@@ -126,7 +128,10 @@ export function CraftGuideMatcher({ slug }: { slug: string }) {
                 <span className="flex-none text-[var(--muted)]">{isExpanded ? "−" : "+"}</span>
               </button>
 
-              {isExpanded && hasExtra && <TwilightRegaliaAcquisition league={league} />}
+              {isExpanded && isThisGuide && step.n === 1 && (
+                <TwilightRegaliaAcquisition league={league} hasCrusaderInfluence={hasCrusaderInfluence} />
+              )}
+              {isExpanded && isThisGuide && step.n === 2 && <OrbOfRemembrancePrice league={league} />}
             </div>
           );
         })}

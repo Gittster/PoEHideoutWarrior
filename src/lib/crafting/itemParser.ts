@@ -17,11 +17,19 @@ export interface ParsedItem {
   itemLevel?: number;
   corrupted: boolean;
   mirrored: boolean;
+  /** e.g. ["Crusader"] for a Crusader-influenced item, ["Shaper", "Elder"] for double-influenced. */
+  influences: string[];
   /** Every stat line found from the Item Level block onward (implicit + explicit combined - see note above on why they aren't split out). */
   modLines: string[];
 }
 
 const RARITIES = ["Normal", "Magic", "Rare", "Unique"] as const;
+const INFLUENCE_LINE = /^(Shaper|Elder|Crusader|Redeemer|Hunter|Warlord) Item$/;
+
+function isInfluenceOnlyBlock(block: string): boolean {
+  const lines = block.split("\n").map((l) => l.trim()).filter(Boolean);
+  return lines.length > 0 && lines.every((l) => INFLUENCE_LINE.test(l));
+}
 
 export function parseItemText(text: string): ParsedItem | null {
   const trimmed = text.trim();
@@ -33,7 +41,7 @@ export function parseItemText(text: string): ParsedItem | null {
     .filter(Boolean);
   if (blocks.length === 0) return null;
 
-  const item: ParsedItem = { raw: trimmed, corrupted: false, mirrored: false, modLines: [] };
+  const item: ParsedItem = { raw: trimmed, corrupted: false, mirrored: false, influences: [], modLines: [] };
   let itemLevelBlockIndex = -1;
 
   blocks.forEach((block, i) => {
@@ -56,6 +64,10 @@ export function parseItemText(text: string): ParsedItem | null {
 
     if (/^Corrupted$/m.test(block)) item.corrupted = true;
     if (/^Mirrored$/m.test(block)) item.mirrored = true;
+
+    for (const m of block.matchAll(new RegExp(INFLUENCE_LINE.source, "gm"))) {
+      item.influences.push(m[1]);
+    }
   });
 
   // Doesn't look like real item text (no class/rarity/item level found at all).
@@ -64,7 +76,9 @@ export function parseItemText(text: string): ParsedItem | null {
   if (itemLevelBlockIndex >= 0) {
     for (let i = itemLevelBlockIndex + 1; i < blocks.length; i++) {
       const block = blocks[i];
-      if (/^(Corrupted|Mirrored|Unidentified)$/.test(block) || /^Note:/.test(block)) continue;
+      if (/^(Corrupted|Mirrored|Unidentified)$/.test(block) || /^Note:/.test(block) || isInfluenceOnlyBlock(block)) {
+        continue;
+      }
       const lines = block
         .split("\n")
         .map((l) => l.trim())
